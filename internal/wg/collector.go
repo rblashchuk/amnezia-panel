@@ -1,6 +1,7 @@
 package wg
 
 import (
+	"fmt"
 	"os/exec"
 )
 
@@ -20,5 +21,9 @@ func (c *Collector) Dump() ([]byte, error) {
 		"dump",
 	)
 
-	return cmd.Output()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("wg error: %s: %w", string(out), err)
+	}
+	return out, nil
 }
