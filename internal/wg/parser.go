@@ -11,21 +11,35 @@ func ParseDump(data string) ([]model.Peer, error) {
 
 	var peers []model.Peer
 
-	lines := strings.Split(data, "\n")
+	lines := strings.Split(strings.TrimSpace(data), "\n")
 
 	for _, line := range lines {
-
-		fields := strings.Split(line, "\t")
-
-		if len(fields) != 8 {
+		if line == "" {
 			continue
 		}
 
-		rx, _ := strconv.ParseUint(fields[5], 10, 64)
-		tx, _ := strconv.ParseUint(fields[6], 10, 64)
+		fields := strings.Split(line, "\t")
+
+		// нам нужно минимум чтобы были rx/tx
+		if len(fields) < 8 {
+			continue
+		}
+
+		// последние 3 поля обычно:
+		// latestHandshake, rx, tx
+		rxIndex := len(fields) - 3
+		txIndex := len(fields) - 2
+
+		rx, err1 := strconv.ParseUint(fields[rxIndex], 10, 64)
+		tx, err2 := strconv.ParseUint(fields[txIndex], 10, 64)
+
+		// если не числа — пропускаем peer
+		if err1 != nil || err2 != nil {
+			continue
+		}
 
 		peers = append(peers, model.Peer{
-			PublicKey: fields[0],
+			PublicKey: fields[1],
 			RxBytes:   rx,
 			TxBytes:   tx,
 		})
