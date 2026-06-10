@@ -1,0 +1,60 @@
+<!doctype html>
+
+<html>
+<head>
+    <title>VPN Stats</title>
+</head>
+
+<body>
+
+<h1>VPN Clients</h1>
+
+<table border="1">
+
+<thead>
+<tr>
+    <th>Public Key</th>
+    <th>RX</th>
+    <th>TX</th>
+</tr>
+</thead>
+
+<tbody id="clients"></tbody>
+
+</table>
+
+<script>
+
+async function load() {
+
+    const response =
+        await fetch("/api/peers")
+
+    const peers =
+        await response.json()
+
+    const tbody =
+        document.getElementById("clients")
+
+    tbody.innerHTML = ""
+
+    peers.forEach(peer => {
+
+        tbody.innerHTML += `
+            <tr>
+                <td>${peer.public_key}</td>
+                <td>${peer.rx_bytes}</td>
+                <td>${peer.tx_bytes}</td>
+            </tr>
+        `
+    })
+}
+
+load()
+
+setInterval(load, 5000)
+
+</script>
+
+</body>
+</html>
