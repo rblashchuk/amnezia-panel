@@ -13,5 +13,5 @@ curl -fsSL https://raw.githubusercontent.com/rblashchuk/vpn-panel/master/scripts
 Run as root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rblashchuk/vpn-panel/master/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rblashchuk/vpn-panel/master/scripts/uninstall.sh | bash
 ```
