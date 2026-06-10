@@ -11,7 +11,7 @@ import (
 func main() {
 
 	wgCollector := &wg.Collector{
-		Container: "amnezia-awg",
+		Container: "amnezia-wireguard",
 	}
 
 	handler := &web.Handler{
