@@ -2,43 +2,35 @@
 
 set -e
 
-REPO="https://github.com/USERNAME/vpn-panel.git"
-APP="vpn-panel"
+VERSION="latest"
+REPO="rblashchuk/vpn-panel"
 INSTALL_DIR="/opt/vpn-panel"
-SERVICE="/etc/systemd/system/vpn-panel.service"
+BIN="vpn-panel"
 
-echo "[1/6] Installing dependencies..."
+echo "[1/5] Detecting architecture..."
 
-if ! command -v go >/dev/null 2>&1; then
-echo "Go not found. Installing..."
-apt update
-apt install -y golang-go
+ARCH=$(uname -m)
+
+if [ "$ARCH" = "x86_64" ]; then
+  ASSET="vpn-panel-linux-amd64"
+else
+  echo "Unsupported arch"
+  exit 1
 fi
 
-if ! command -v git >/dev/null 2>&1; then
-apt update
-apt install -y git
-fi
+echo "[2/5] Downloading binary..."
 
-echo "[2/6] Cloning repo..."
+mkdir -p $INSTALL_DIR
 
-rm -rf "$INSTALL_DIR"
-git clone "$REPO" "$INSTALL_DIR"
+curl -L \
+  "https://github.com/$REPO/releases/$VERSION/download/$ASSET" \
+  -o $INSTALL_DIR/$BIN
 
-cd "$INSTALL_DIR"
+chmod +x $INSTALL_DIR/$BIN
 
-echo "[3/6] Building..."
+echo "[3/5] Installing systemd service..."
 
-go mod tidy
-go build -o $APP ./cmd/server
-
-echo "[4/6] Installing binary..."
-
-chmod +x $APP
-
-echo "[5/6] Creating systemd service..."
-
-cat > $SERVICE <<EOF
+cat > /etc/systemd/system/vpn-panel.service <<EOF
 [Unit]
 Description=VPN Panel
 After=network.target docker.service
@@ -46,7 +38,7 @@ After=network.target docker.service
 [Service]
 Type=simple
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/$APP
+ExecStart=$INSTALL_DIR/$BIN
 Restart=always
 RestartSec=5
 
@@ -54,12 +46,10 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-echo "[6/6] Starting service..."
+echo "[4/5] Starting service..."
 
 systemctl daemon-reload
 systemctl enable vpn-panel
 systemctl restart vpn-panel
 
-echo "DONE."
-echo "Panel runs on 127.0.0.1:9000 (use SSH tunnel)"
-    
+echo "[5/5] Done. Access via SSH tunnel on 127.0.0.1:9000"
