@@ -15,44 +15,26 @@ func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
 
 	dump, err := h.WG.Dump()
 	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	peers, err := wg.ParseDump(string(dump))
 	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(peers)
 }
 
-func (h *Handler) Index(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
-	http.ServeFile(
-		w,
-		r,
-		"./web/index.html",
-	)
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	http.ServeFile(w, r, "./web/index.html")
 }
