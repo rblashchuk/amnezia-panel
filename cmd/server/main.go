@@ -22,7 +22,7 @@ func main() {
 
 	mux.HandleFunc("/api/peers", handler.Peers)
 
-	mux.HandleFunc("/", handler.Index)
+	mux.HandleFunc("/peers", handler.PeersPage)
 
 	mux.Handle("/static/",
 		http.StripPrefix("/static/",

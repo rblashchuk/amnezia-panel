@@ -29,9 +29,9 @@ func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(peers)
 }
 
-func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PeersPage(w http.ResponseWriter, r *http.Request) {
 
-	if r.URL.Path != "/" {
+	if r.URL.Path != "/peers" {
 		http.NotFound(w, r)
 		return
 	}
