@@ -5,11 +5,13 @@ import (
 	"log"
 	"net/http"
 
+	"vpn-panel/internal/db"
 	"vpn-panel/internal/wg"
 )
 
 type Handler struct {
 	WG *wg.Collector
+	DB *db.DB
 }
 
 func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {

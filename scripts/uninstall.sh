@@ -1,29 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVICE="vpn-panel.service"
-BIN_DIR="/opt/vpn-panel"
+INSTALL_DIR="/opt/vpn-panel"
 
-echo "[1/5] Stopping service..."
+echo "[1/3] Stopping stack..."
+cd "$INSTALL_DIR" || true
+docker compose down -v 2>/dev/null || true
 
-systemctl stop vpn-panel 2>/dev/null || true
+echo "[2/3] Removing files..."
+rm -rf "$INSTALL_DIR"
 
-echo "[2/5] Disabling service..."
+echo "[3/3] Done"
 
-systemctl disable vpn-panel 2>/dev/null || true
-
-echo "[3/5] Removing systemd unit..."
-
-rm -f /etc/systemd/system/$SERVICE
-
-echo "[4/5] Reloading systemd..."
-
-systemctl daemon-reload
-systemctl reset-failed 2>/dev/null || true
-
-echo "[5/5] Removing files..."
-
-rm -rf "$BIN_DIR"
-
-echo ""
 echo "vpn-panel uninstalled"

@@ -1,0 +1,18 @@
+services:
+  vpn-panel:
+    image: ghcr.io/rblashchuk/vpn-panel:latest
+    container_name: vpn-panel
+
+    restart: unless-stopped
+
+    network_mode: host
+
+    volumes:
+      - vpn-panel-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    environment:
+      VPN_CONTAINER: amnezia-wireguard
+
+volumes:
+  vpn-panel-data:
