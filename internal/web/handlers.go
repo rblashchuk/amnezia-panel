@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"vpn-panel/internal/wg"
@@ -30,11 +31,7 @@ func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PeersPage(w http.ResponseWriter, r *http.Request) {
-
-	if r.URL.Path != "/peers" {
-		http.NotFound(w, r)
-		return
-	}
+	log.Println("PEERS PAGE HIT")
 
 	http.ServeFile(w, r, "./web/index.html")
 }
