@@ -2,6 +2,7 @@ package wg_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -40,6 +41,24 @@ wg0	CCCC3333DDDD111122223333444455556666AAAA1111==	preshared	(none)	10.8.0.3/32	
 	// peer 3 (нулевой трафик)
 	assert.Equal(s.T(), uint64(0), peers[2].RxBytes)
 	assert.Equal(s.T(), uint64(0), peers[2].TxBytes)
+}
+
+func (s *ParserSuite) TestParseHandshake() {
+
+	input := `wg0	AAAA1111BBBBCCCCDDDD111122223333444455556666==	preshared	endpoint	10.8.0.1/32	1700000000	1000	2000	off`
+
+	peers, err := wg.ParseDump(input)
+
+	assert.NoError(s.T(), err)
+	assert.Len(s.T(), peers, 1)
+
+	peer := peers[0]
+
+	assert.False(s.T(), peer.LastHandshake.IsZero())
+
+	expected := time.Unix(1700000000, 0).UTC()
+
+	assert.Equal(s.T(), expected, peer.LastHandshake.UTC())
 }
 
 func TestParserSuite(t *testing.T) {
