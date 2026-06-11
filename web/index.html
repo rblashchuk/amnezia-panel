@@ -1,60 +1,88 @@
 <!doctype html>
-
-<html>
+<html lang="en">
 <head>
-    <title>VPN Stats</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VPN PANEL</title>
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 
 <body>
+  <div class="header">
+    <div class="title">VPN PANEL</div>
+    <div class="sub">WIREGUARD · LIVE STATS</div>
+  </div>
 
-<h1>VPN Clients</h1>
+  <div id="grid" class="grid"></div>
 
-<table border="1">
+  <script>
+    async function load() {
+      const res = await fetch('/api/peers');
+      const data = await res.json();
 
-<thead>
-<tr>
-    <th>Public Key</th>
-    <th>RX</th>
-    <th>TX</th>
-</tr>
-</thead>
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
 
-<tbody id="clients"></tbody>
+      data.forEach(p => {
+        const status = getStatus(p.last_handshake);
 
-</table>
+        const el = document.createElement('div');
+        el.className = 'card';
 
-<script>
+        el.innerHTML = `
+          <div class="status ${status}"></div>
 
-async function load() {
+          <div class="label">PUBLIC KEY</div>
+          <div class="value small">${p.public_key.slice(0, 24)}...</div>
 
-    const response =
-        await fetch("/api/peers")
+          <div class="metrics">
+            <div>
+              <div class="label">RX</div>
+              <div class="value">${formatBytes(p.rx_bytes)}</div>
+            </div>
 
-    const peers =
-        await response.json()
+            <div>
+              <div class="label">TX</div>
+              <div class="value">${formatBytes(p.tx_bytes)}</div>
+            </div>
+          </div>
 
-    const tbody =
-        document.getElementById("clients")
+          <div class="footer">
+            <div class="label">STATUS</div>
+            <div class="value tiny">${status.toUpperCase()}</div>
+          </div>
+        `;
 
-    tbody.innerHTML = ""
+        grid.appendChild(el);
+      });
+    }
 
-    peers.forEach(peer => {
+    function getStatus(lastHandshake) {
+      if (!lastHandshake) return 'offline';
 
-        tbody.innerHTML += `
-            <tr>
-                <td>${peer.public_key}</td>
-                <td>${peer.rx_bytes}</td>
-                <td>${peer.tx_bytes}</td>
-            </tr>
-        `
-    })
-}
+      const t = new Date(lastHandshake).getTime();
+      if (isNaN(t)) return 'offline';
 
-load()
+      const diff = Date.now() - t;
+      const minutes = diff / 60000;
 
-setInterval(load, 5000)
+      return minutes < 1 ? 'online' : 'offline';
+    }
 
-</script>
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B','KB','MB','GB','TB'];
+      let i = 0;
+      let val = bytes;
+      while (val >= 1024 && i < units.length - 1) {
+        val /= 1024;
+        i++;
+      }
+      return `${val.toFixed(1)} ${units[i]}`;
+    }
 
+    load();
+    setInterval(load, 3000);
+  </script>
 </body>
 </html>
