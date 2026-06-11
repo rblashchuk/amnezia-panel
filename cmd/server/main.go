@@ -54,5 +54,5 @@ func main() {
 	})
 
 	log.Println("listening on 127.0.0.1:9000")
-	log.Fatal(http.ListenAndServe("127.0.0.1:9000", mux))
+	log.Fatal(http.ListenAndServe(":9000", mux))
 }
