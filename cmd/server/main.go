@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	database, err := db.New("/data/vpn.db")
+	database, err := db.New("/app/data/vpn.db")
 	if err != nil {
 		log.Fatal(err)
 	}
