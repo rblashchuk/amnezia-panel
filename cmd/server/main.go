@@ -20,20 +20,16 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// API
 	mux.HandleFunc("/api/peers", handler.Peers)
 
+	// UI
 	mux.HandleFunc("/peers", handler.PeersPage)
 
-mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	log.Println("ROOT HIT")
-	w.Write([]byte("OK"))
-})
-
-	mux.Handle("/static/",
-		http.StripPrefix("/static/",
-			http.FileServer(http.Dir("./web/static")),
-		),
-	)
+	// health
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
 
 	log.Println("listening on 127.0.0.1:9000")
 
