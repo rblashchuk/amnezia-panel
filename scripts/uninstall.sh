@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_DIR="/opt/vpn-panel"
+CONTAINER_NAME="vpn-panel"
 
-echo "[1/3] Stopping stack..."
-cd "$INSTALL_DIR" || true
-docker compose down -v 2>/dev/null || true
+echo "[1/2] Stopping container..."
 
-echo "[2/3] Removing files..."
-rm -rf "$INSTALL_DIR"
+docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
-echo "[3/3] Done"
+echo "[2/2] Removing image..."
 
-echo "vpn-panel uninstalled"
+docker rmi ghcr.io/rblashchuk/vpn-panel:latest 2>/dev/null || true
+
+echo ""
+echo "vpn-panel removed"

@@ -2,18 +2,18 @@ FROM golang:1.24 AS builder
 
 WORKDIR /app
 
-COPY go.mod .
-COPY go.sum .
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=1 GOOS=linux go build -o vpn-panel ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -o vpn-panel ./cmd/server
 
 FROM debian:bookworm-slim
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates docker.io && \
+    apt-get install -y ca-certificates docker-cli && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -1,42 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="rblashchuk/vpn-panel"
-INSTALL_DIR="/opt/vpn-panel"
-BRANCH="master"
+REPO_IMAGE="ghcr.io/rblashchuk/vpn-panel:latest"
+SERVICE="vpn-panel"
+CONTAINER_NAME="vpn-panel"
 
 echo "[1/5] Checking environment..."
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "ERROR: docker is not installed"
+  echo "ERROR: docker not installed"
   exit 1
 fi
 
-if ! docker compose version >/dev/null 2>&1; then
-  echo "ERROR: docker compose plugin is not installed"
-  exit 1
-fi
+echo "[2/5] Pulling image..."
 
-echo "[2/5] Creating install dir..."
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
+docker pull "$REPO_IMAGE"
 
-echo "[3/5] Downloading compose + env..."
+echo "[3/5] Stopping old container..."
 
-curl -fsSL \
-  "https://raw.githubusercontent.com/$REPO/$BRANCH/docker-compose.yml" \
-  -o docker-compose.yml
+docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
-curl -fsSL \
-  "https://raw.githubusercontent.com/$REPO/$BRANCH/.env.example" \
-  -o .env || true
+echo "[4/5] Starting container..."
 
-echo "[4/5] Pulling image..."
-docker compose pull
+docker run -d \
+  --name "$CONTAINER_NAME" \
+  --restart unless-stopped \
+  -p 9000:9000 \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  "$REPO_IMAGE"
 
-echo "[5/5] Starting..."
-docker compose up -d
+echo "[5/5] Done"
 
 echo ""
-echo "OK: vpn-panel installed"
-echo "Access: ssh -L 9000:127.0.0.1:9000 user@server"
+echo "OK: vpn-panel running in docker"
+echo "Access: http://127.0.0.1:9000 (via SSH tunnel if needed)"
