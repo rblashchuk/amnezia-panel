@@ -24,6 +24,11 @@ func main() {
 
 	mux.HandleFunc("/peers", handler.PeersPage)
 
+mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	log.Println("ROOT HIT")
+	w.Write([]byte("OK"))
+})
+
 	mux.Handle("/static/",
 		http.StripPrefix("/static/",
 			http.FileServer(http.Dir("./web/static")),
