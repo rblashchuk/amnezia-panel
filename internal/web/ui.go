@@ -3,7 +3,7 @@ package web
 import "embed"
 
 //go:embed assets/index.html
-var indexHTML string
+var IndexHTML string
 
 //go:embed assets/static/*
-var staticFS embed.FS
+var StaticFS embed.FS

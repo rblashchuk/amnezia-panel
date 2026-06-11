@@ -34,5 +34,5 @@ func (h *Handler) PeersPage(w http.ResponseWriter, r *http.Request) {
 	log.Println("PEERS PAGE HIT")
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(indexHTML))
+	w.Write([]byte(IndexHTML))
 }

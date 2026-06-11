@@ -20,20 +20,22 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// API
 	mux.HandleFunc("/api/peers", handler.Peers)
 
-	// UI
 	mux.HandleFunc("/peers", handler.PeersPage)
 
-	// health
+	fs := http.FS(web.StaticFS)
+	mux.Handle("/static/",
+		http.StripPrefix("/static/",
+			http.FileServer(fs),
+		),
+	)
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
 	})
 
 	log.Println("listening on 127.0.0.1:9000")
 
-	log.Fatal(
-		http.ListenAndServe("127.0.0.1:9000", mux),
-	)
+	log.Fatal(http.ListenAndServe("127.0.0.1:9000", mux))
 }
