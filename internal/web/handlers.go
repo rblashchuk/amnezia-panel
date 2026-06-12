@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -83,10 +82,7 @@ func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PeersPage(w http.ResponseWriter, r *http.Request) {
-	log.Println("PEERS PAGE HIT")
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(IndexHTML))
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
 func parseDurationParam(value string, fallback time.Duration) time.Duration {

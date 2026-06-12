@@ -38,15 +38,7 @@ func main() {
 	mux.HandleFunc("/api/traffic", handler.Traffic)
 	mux.HandleFunc("/peers", handler.PeersPage)
 
-	mux.Handle("/static/",
-		http.StripPrefix("/static/",
-			http.FileServer(http.FS(web.StaticFS)),
-		),
-	)
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
-	})
+	mux.Handle("/", web.AppHandler())
 
 	listenAddr := env("VPN_PANEL_LISTEN", "127.0.0.1:9000")
 	log.Println("listening on", listenAddr)
