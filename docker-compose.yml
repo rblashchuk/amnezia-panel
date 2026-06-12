@@ -5,14 +5,17 @@ services:
 
     restart: unless-stopped
 
-    network_mode: host
+    ports:
+      - "127.0.0.1:9000:9000"
 
     volumes:
       - vpn-panel-data:/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
     environment:
+      VPN_SOURCE: docker
       VPN_CONTAINER: amnezia-wireguard
+      VPN_PANEL_LISTEN: 0.0.0.0:9000
 
 volumes:
   vpn-panel-data:

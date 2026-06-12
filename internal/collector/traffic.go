@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -9,8 +10,8 @@ import (
 )
 
 type TrafficCollector struct {
-	DB        *db.DB
-	WG        *wg.Collector
+	DB *db.DB
+	WG wg.Source
 
 	lastState map[string]peerState
 }
@@ -20,11 +21,20 @@ type peerState struct {
 	Tx uint64
 }
 
-func New(db *db.DB, wgCollector *wg.Collector) *TrafficCollector {
+func New(db *db.DB, wgCollector wg.Source) *TrafficCollector {
+	lastState := make(map[string]peerState)
+	totals, err := db.LatestPeerTotals()
+	if err != nil {
+		log.Println("load latest peer totals error:", err)
+	}
+	for publicKey, total := range totals {
+		lastState[publicKey] = peerState{Rx: total.Rx, Tx: total.Tx}
+	}
+
 	return &TrafficCollector{
 		DB:        db,
 		WG:        wgCollector,
-		lastState: make(map[string]peerState),
+		lastState: lastState,
 	}
 }
 
@@ -38,7 +48,10 @@ func (c *TrafficCollector) Run() {
 }
 
 func (c *TrafficCollector) collect() {
-	raw, err := c.WG.Dump()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	raw, err := c.WG.Dump(ctx)
 	if err != nil {
 		log.Println("dump error:", err)
 		return
@@ -51,20 +64,24 @@ func (c *TrafficCollector) collect() {
 	}
 
 	for _, p := range peers {
-		prev := c.lastState[p.PublicKey]
+		prev, seen := c.lastState[p.PublicKey]
 
 		rx := p.RxBytes
 		tx := p.TxBytes
 
 		var rxDelta, txDelta uint64
 
-		if rx >= prev.Rx {
+		if !seen {
+			rxDelta = 0
+		} else if rx >= prev.Rx {
 			rxDelta = rx - prev.Rx
 		} else {
 			rxDelta = rx
 		}
 
-		if tx >= prev.Tx {
+		if !seen {
+			txDelta = 0
+		} else if tx >= prev.Tx {
 			txDelta = tx - prev.Tx
 		} else {
 			txDelta = tx

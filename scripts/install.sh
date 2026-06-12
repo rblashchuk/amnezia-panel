@@ -2,9 +2,11 @@
 set -euo pipefail
 
 REPO_IMAGE="ghcr.io/rblashchuk/vpn-panel:latest"
-SERVICE="vpn-panel"
 CONTAINER_NAME="vpn-panel"
 DATA_DIR="/opt/vpn-panel/data"
+VPN_SOURCE="${VPN_SOURCE:-docker}"
+VPN_CONTAINER="${VPN_CONTAINER:-amnezia-wireguard}"
+PANEL_PORT="${PANEL_PORT:-9000}"
 
 echo "[1/6] Checking environment..."
 
@@ -33,13 +35,35 @@ docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
 echo "[5/6] Starting container..."
 
-docker run -d \
-  --name "$CONTAINER_NAME" \
-  --restart unless-stopped \
-  -p 9000:9000 \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v "$DATA_DIR:/app/data" \
-  "$REPO_IMAGE"
+case "$VPN_SOURCE" in
+  docker)
+    docker run -d \
+      --name "$CONTAINER_NAME" \
+      --restart unless-stopped \
+      -p "127.0.0.1:${PANEL_PORT}:9000" \
+      -v /var/run/docker.sock:/var/run/docker.sock:ro \
+      -v "$DATA_DIR:/app/data" \
+      -e VPN_SOURCE=docker \
+      -e "VPN_CONTAINER=$VPN_CONTAINER" \
+      -e VPN_PANEL_LISTEN=0.0.0.0:9000 \
+      "$REPO_IMAGE"
+    ;;
+  local)
+    docker run -d \
+      --name "$CONTAINER_NAME" \
+      --restart unless-stopped \
+      --network host \
+      --cap-add NET_ADMIN \
+      -v "$DATA_DIR:/app/data" \
+      -e VPN_SOURCE=local \
+      -e VPN_PANEL_LISTEN="127.0.0.1:${PANEL_PORT}" \
+      "$REPO_IMAGE"
+    ;;
+  *)
+    echo "ERROR: unsupported VPN_SOURCE=$VPN_SOURCE (use docker or local)"
+    exit 1
+    ;;
+esac
 
 echo "[6/6] Verifying..."
 
@@ -55,4 +79,5 @@ fi
 
 echo ""
 echo "OK: vpn-panel running in docker"
-echo "Access: http://127.0.0.1:9000 (via SSH tunnel if needed)"
+echo "Mode: $VPN_SOURCE"
+echo "Access: http://127.0.0.1:${PANEL_PORT} (via SSH tunnel if needed)"

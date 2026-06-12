@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS peer_samples (
 
     collected_at DATETIME NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_peer_samples_public_key_collected_at
+ON peer_samples (public_key, collected_at);
 `)
 	return err
 }

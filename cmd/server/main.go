@@ -12,7 +12,8 @@ import (
 )
 
 func main() {
-	database, err := db.New("/app/data/vpn.db")
+	dbPath := env("VPN_PANEL_DB", "/app/data/vpn.db")
+	database, err := db.New(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -21,26 +22,20 @@ func main() {
 		log.Fatal(err)
 	}
 
-	container := os.Getenv("VPN_CONTAINER")
-	if container == "" {
-		container = "amnezia-wireguard"
-	}
+	wgSource := buildWGSource()
 
-	wgCollector := &wg.Collector{
-		Container: container,
-	}
-
-	c := collector.New(database, wgCollector)
+	c := collector.New(database, wgSource)
 	go c.Run()
 
 	handler := &web.Handler{
-		WG: wgCollector,
+		WG: wgSource,
 		DB: database,
 	}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/peers", handler.Peers)
+	mux.HandleFunc("/api/traffic", handler.Traffic)
 	mux.HandleFunc("/peers", handler.PeersPage)
 
 	mux.Handle("/static/",
@@ -53,6 +48,32 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	log.Println("listening on 127.0.0.1:9000")
-	log.Fatal(http.ListenAndServe(":9000", mux))
+	listenAddr := env("VPN_PANEL_LISTEN", "127.0.0.1:9000")
+	log.Println("listening on", listenAddr)
+	log.Fatal(http.ListenAndServe(listenAddr, mux))
+}
+
+func buildWGSource() wg.Source {
+	mode := env("VPN_SOURCE", "docker")
+	switch mode {
+	case "local":
+		return &wg.LocalSource{
+			Command: env("WG_COMMAND", "wg"),
+		}
+	case "docker":
+		return &wg.DockerSource{
+			Container: env("VPN_CONTAINER", "amnezia-wireguard"),
+		}
+	default:
+		log.Fatalf("unsupported VPN_SOURCE %q", mode)
+		return nil
+	}
+}
+
+func env(name, fallback string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
