@@ -1,7 +1,7 @@
 services:
-  vpn-panel:
-    image: ghcr.io/rblashchuk/vpn-panel:latest
-    container_name: vpn-panel
+  amnezia-panel:
+    image: ghcr.io/rblashchuk/amnezia-panel:latest
+    container_name: amnezia-panel
 
     restart: unless-stopped
 
@@ -9,7 +9,7 @@ services:
       - "127.0.0.1:9000:9000"
 
     volumes:
-      - vpn-panel-data:/app/data
+      - amnezia-panel-data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
     environment:
@@ -18,4 +18,4 @@ services:
       VPN_PANEL_LISTEN: 0.0.0.0:9000
 
 volumes:
-  vpn-panel-data:
+  amnezia-panel-data:

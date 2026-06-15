@@ -1,4 +1,4 @@
-# VPN Panel
+# Amnezia Panel
 
 Lightweight panel for self-hosted AmneziaVPN / WireGuard live stats and traffic history.
 
@@ -7,7 +7,7 @@ Lightweight panel for self-hosted AmneziaVPN / WireGuard live stats and traffic 
 Run as root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rblashchuk/vpn-panel/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scripts/install.sh | bash
 ```
 
 The installer supports two WireGuard data sources:
@@ -32,5 +32,5 @@ The panel listens on `127.0.0.1:9000` on the host by default. Use an SSH tunnel 
 Run as root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rblashchuk/vpn-panel/master/scripts/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scripts/uninstall.sh | bash
 ```

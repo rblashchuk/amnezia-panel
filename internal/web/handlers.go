@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"vpn-panel/internal/db"
-	"vpn-panel/internal/model"
-	"vpn-panel/internal/wg"
+	"github.com/rblashchuk/amnezia-panel/internal/db"
+	"github.com/rblashchuk/amnezia-panel/internal/model"
+	"github.com/rblashchuk/amnezia-panel/internal/wg"
 )
 
 type Handler struct {

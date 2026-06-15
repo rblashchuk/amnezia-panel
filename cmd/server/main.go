@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"os"
 
-	"vpn-panel/internal/collector"
-	"vpn-panel/internal/db"
-	"vpn-panel/internal/web"
-	"vpn-panel/internal/wg"
+	"github.com/rblashchuk/amnezia-panel/internal/collector"
+	"github.com/rblashchuk/amnezia-panel/internal/db"
+	"github.com/rblashchuk/amnezia-panel/internal/web"
+	"github.com/rblashchuk/amnezia-panel/internal/wg"
 )
 
 func main() {

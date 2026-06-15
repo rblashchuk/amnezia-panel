@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"vpn-panel/internal/db"
-	"vpn-panel/internal/wg"
+	"github.com/rblashchuk/amnezia-panel/internal/db"
+	"github.com/rblashchuk/amnezia-panel/internal/wg"
 )
 
 type TrafficCollector struct {

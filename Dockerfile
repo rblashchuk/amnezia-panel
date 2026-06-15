@@ -19,7 +19,7 @@ COPY . .
 COPY --from=web-builder /app/internal/web/dist ./internal/web/dist
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -o vpn-panel ./cmd/server
+    go build -o amnezia-panel ./cmd/server
 
 FROM debian:bookworm-slim
 
@@ -29,6 +29,6 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-COPY --from=builder /app/vpn-panel .
+COPY --from=builder /app/amnezia-panel .
 
-CMD ["./vpn-panel"]
+CMD ["./amnezia-panel"]

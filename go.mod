@@ -1,4 +1,4 @@
-module vpn-panel
+module github.com/rblashchuk/amnezia-panel
 
 go 1.26.2
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"vpn-panel/internal/db"
+	"github.com/rblashchuk/amnezia-panel/internal/db"
 )
 
 func TestTrafficSamplesAndLatestPeerTotals(t *testing.T) {

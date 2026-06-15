@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_IMAGE="ghcr.io/rblashchuk/vpn-panel:latest"
-CONTAINER_NAME="vpn-panel"
-DATA_DIR="/opt/vpn-panel/data"
+REPO_IMAGE="ghcr.io/rblashchuk/amnezia-panel:latest"
+CONTAINER_NAME="amnezia-panel"
+LEGACY_CONTAINER_NAME="vpn-panel"
+DATA_ROOT="/opt/amnezia-panel"
+DATA_DIR="$DATA_ROOT/data"
+LEGACY_DATA_DIR="/opt/vpn-panel/data"
 VPN_SOURCE="${VPN_SOURCE:-docker}"
 VPN_CONTAINER="${VPN_CONTAINER:-amnezia-wireguard}"
 VPN_ENDPOINTS="${VPN_ENDPOINTS:-}"
@@ -22,6 +25,12 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "[2/6] Creating data directory..."
+
+if [ ! -d "$DATA_DIR" ] && [ -d "$LEGACY_DATA_DIR" ]; then
+  echo "Migrating data from $LEGACY_DATA_DIR to $DATA_DIR..."
+  mkdir -p "$DATA_ROOT"
+  mv "$LEGACY_DATA_DIR" "$DATA_DIR"
+fi
 
 mkdir -p "$DATA_DIR"
 chmod 755 "$DATA_DIR"
@@ -56,6 +65,7 @@ fi
 echo "[4/6] Stopping old container..."
 
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+docker rm -f "$LEGACY_CONTAINER_NAME" 2>/dev/null || true
 
 echo "[5/6] Starting container..."
 
@@ -95,7 +105,7 @@ echo "[6/6] Verifying..."
 sleep 1
 
 if docker ps | grep -q "$CONTAINER_NAME"; then
-  echo "OK: vpn-panel running"
+  echo "OK: amnezia-panel running"
 else
   echo "ERROR: container failed to start"
   docker logs "$CONTAINER_NAME" || true
@@ -103,7 +113,7 @@ else
 fi
 
 echo ""
-echo "OK: vpn-panel running in docker"
+echo "OK: amnezia-panel running in docker"
 echo "Mode: $VPN_SOURCE"
 if [ -n "$VPN_ENDPOINTS" ]; then
   echo "Sources: $VPN_ENDPOINTS"

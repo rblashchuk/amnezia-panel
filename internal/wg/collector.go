@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"vpn-panel/internal/model"
+	"github.com/rblashchuk/amnezia-panel/internal/model"
 )
 
 type Source interface {

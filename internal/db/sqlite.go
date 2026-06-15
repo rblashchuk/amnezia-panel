@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"vpn-panel/internal/model"
+	"github.com/rblashchuk/amnezia-panel/internal/model"
 
 	_ "modernc.org/sqlite"
 )

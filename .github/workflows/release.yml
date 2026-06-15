@@ -33,5 +33,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/rblashchuk/vpn-panel:${{ github.ref_name }}
-            ghcr.io/rblashchuk/vpn-panel:latest
+            ghcr.io/rblashchuk/amnezia-panel:${{ github.ref_name }}
+            ghcr.io/rblashchuk/amnezia-panel:latest

@@ -87,7 +87,7 @@ export function App() {
       <header className="topbar">
         <div>
           <div className="eyebrow">Self-hosted AmneziaVPN</div>
-          <h1>VPN Panel</h1>
+          <h1>Amnezia Panel</h1>
         </div>
         <div className="top-actions">
           <div className="tabs" role="tablist" aria-label="Panel sections">

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"vpn-panel/internal/model"
+	"github.com/rblashchuk/amnezia-panel/internal/model"
 )
 
 func ParseDump(data string) ([]model.Peer, error) {
