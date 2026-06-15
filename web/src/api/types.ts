@@ -5,6 +5,15 @@ export type Peer = {
   last_handshake: string
 }
 
+export type Source = {
+  id: string
+  protocol: string
+  label: string
+  container?: string
+  command: string
+  mode: string
+}
+
 export type TrafficPoint = {
   collected_at: string
   rx_bytes: number
@@ -12,6 +21,7 @@ export type TrafficPoint = {
 }
 
 export type TrafficResponse = {
+  source_id: string
   public_key: string
   range_seconds: number
   bucket_seconds: number
@@ -21,3 +31,38 @@ export type TrafficResponse = {
 }
 
 export type TrafficRange = '6h' | '24h' | '168h' | '720h'
+
+export type DebugInfo = {
+  generated_at: string
+  runtime: {
+    go_version: string
+    goos: string
+    goarch: string
+    num_cpu: number
+    goroutines: number
+  }
+  system: {
+    hostname: string
+    kernel: string
+    load_avg: string
+    uptime: string
+  }
+  memory_kb: Record<string, number>
+  disk: {
+    path: string
+    total: number
+    free: number
+    available: number
+    used_pct: number
+  }
+  network: Array<{
+    interface: string
+    rx_bytes: number
+    tx_bytes: number
+  }>
+  containers: Array<{
+    name: string
+    status: string
+    image: string
+  }>
+}

@@ -22,19 +22,21 @@ func main() {
 		log.Fatal(err)
 	}
 
-	wgSource := buildWGSource()
+	sources := buildWGSources()
 
-	c := collector.New(database, wgSource)
+	c := collector.New(database, sources)
 	go c.Run()
 
 	handler := &web.Handler{
-		WG: wgSource,
-		DB: database,
+		WGSources: sources,
+		DB:        database,
 	}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/peers", handler.Peers)
+	mux.HandleFunc("/api/sources", handler.Sources)
+	mux.HandleFunc("/api/debug", handler.Debug)
 	mux.HandleFunc("/api/traffic", handler.Traffic)
 	mux.HandleFunc("/peers", handler.PeersPage)
 
@@ -45,21 +47,20 @@ func main() {
 	log.Fatal(http.ListenAndServe(listenAddr, mux))
 }
 
-func buildWGSource() wg.Source {
-	mode := env("VPN_SOURCE", "docker")
-	switch mode {
-	case "local":
-		return &wg.LocalSource{
-			Command: env("WG_COMMAND", "wg"),
-		}
-	case "docker":
-		return &wg.DockerSource{
-			Container: env("VPN_CONTAINER", "amnezia-wireguard"),
-		}
-	default:
-		log.Fatalf("unsupported VPN_SOURCE %q", mode)
-		return nil
+func buildWGSources() []wg.Source {
+	sources, err := wg.SourcesFromEnv(
+		os.Getenv("VPN_ENDPOINTS"),
+		env("VPN_SOURCE", "docker"),
+		os.Getenv("VPN_CONTAINER"),
+		os.Getenv("WG_COMMAND"),
+	)
+	if err != nil {
+		log.Fatal(err)
 	}
+	if len(sources) == 0 {
+		log.Fatal("no VPN sources configured")
+	}
+	return sources
 }
 
 func env(name, fallback string) string {

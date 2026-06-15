@@ -26,14 +26,15 @@ func New(path string) (*DB, error) {
 
 func (db *DB) LatestPeerTotals() (map[string]model.PeerTotal, error) {
 	rows, err := db.Query(`
-SELECT ps.public_key, ps.rx_total, ps.tx_total
+SELECT ps.source_id, ps.public_key, ps.rx_total, ps.tx_total
 FROM peer_samples ps
 JOIN (
-	SELECT public_key, MAX(collected_at) AS collected_at
+	SELECT source_id, public_key, MAX(collected_at) AS collected_at
 	FROM peer_samples
-	GROUP BY public_key
+	GROUP BY source_id, public_key
 ) latest
-ON latest.public_key = ps.public_key
+ON latest.source_id = ps.source_id
+AND latest.public_key = ps.public_key
 AND latest.collected_at = ps.collected_at
 `)
 	if err != nil {
@@ -43,12 +44,12 @@ AND latest.collected_at = ps.collected_at
 
 	totals := make(map[string]model.PeerTotal)
 	for rows.Next() {
-		var publicKey string
+		var sourceID, publicKey string
 		var rxTotal, txTotal uint64
-		if err := rows.Scan(&publicKey, &rxTotal, &txTotal); err != nil {
+		if err := rows.Scan(&sourceID, &publicKey, &rxTotal, &txTotal); err != nil {
 			return nil, err
 		}
-		totals[publicKey] = model.PeerTotal{
+		totals[sourceID+"|"+publicKey] = model.PeerTotal{
 			Rx: rxTotal,
 			Tx: txTotal,
 		}
@@ -57,14 +58,15 @@ AND latest.collected_at = ps.collected_at
 	return totals, rows.Err()
 }
 
-func (db *DB) TrafficSamples(publicKey string, since time.Time) ([]model.TrafficSample, error) {
+func (db *DB) TrafficSamples(sourceID, publicKey string, since time.Time) ([]model.TrafficSample, error) {
 	rows, err := db.Query(`
-SELECT public_key, rx_total, tx_total, rx_delta, tx_delta, collected_at
+SELECT source_id, protocol, container, public_key, rx_total, tx_total, rx_delta, tx_delta, collected_at
 FROM peer_samples
-WHERE public_key = ?
+WHERE source_id = ?
+AND public_key = ?
 AND collected_at >= ?
 ORDER BY collected_at ASC
-`, publicKey, since)
+`, sourceID, publicKey, since)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +76,9 @@ ORDER BY collected_at ASC
 	for rows.Next() {
 		var sample model.TrafficSample
 		if err := rows.Scan(
+			&sample.SourceID,
+			&sample.Protocol,
+			&sample.Container,
 			&sample.PublicKey,
 			&sample.RxTotal,
 			&sample.TxTotal,

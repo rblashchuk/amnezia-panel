@@ -6,6 +6,7 @@ CONTAINER_NAME="vpn-panel"
 DATA_DIR="/opt/vpn-panel/data"
 VPN_SOURCE="${VPN_SOURCE:-docker}"
 VPN_CONTAINER="${VPN_CONTAINER:-amnezia-wireguard}"
+VPN_ENDPOINTS="${VPN_ENDPOINTS:-}"
 PANEL_PORT="${PANEL_PORT:-9000}"
 
 echo "[1/6] Checking environment..."
@@ -29,6 +30,29 @@ echo "[3/6] Pulling image..."
 
 docker pull "$REPO_IMAGE"
 
+if [ "$VPN_SOURCE" = "docker" ] && [ -z "$VPN_ENDPOINTS" ]; then
+  echo "Discovering Amnezia containers..."
+
+  endpoints=()
+
+  if docker ps -a --format '{{.Names}}' | grep -Fxq "amnezia-awg2"; then
+    endpoints+=("awg:amnezia-awg2:awg")
+  fi
+
+  if docker ps -a --format '{{.Names}}' | grep -Fxq "amnezia-wireguard"; then
+    endpoints+=("wireguard:amnezia-wireguard:wg")
+  fi
+
+  if [ "${#endpoints[@]}" -eq 0 ]; then
+    echo "ERROR: no supported Amnezia containers found"
+    echo "Supported containers: amnezia-awg2, amnezia-wireguard"
+    exit 1
+  fi
+
+  VPN_ENDPOINTS="$(IFS=,; echo "${endpoints[*]}")"
+  echo "Found sources: $VPN_ENDPOINTS"
+fi
+
 echo "[4/6] Stopping old container..."
 
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
@@ -45,6 +69,7 @@ case "$VPN_SOURCE" in
       -v "$DATA_DIR:/app/data" \
       -e VPN_SOURCE=docker \
       -e "VPN_CONTAINER=$VPN_CONTAINER" \
+      -e "VPN_ENDPOINTS=$VPN_ENDPOINTS" \
       -e VPN_PANEL_LISTEN=0.0.0.0:9000 \
       "$REPO_IMAGE"
     ;;
@@ -80,4 +105,7 @@ fi
 echo ""
 echo "OK: vpn-panel running in docker"
 echo "Mode: $VPN_SOURCE"
+if [ -n "$VPN_ENDPOINTS" ]; then
+  echo "Sources: $VPN_ENDPOINTS"
+fi
 echo "Access: http://127.0.0.1:${PANEL_PORT} (via SSH tunnel if needed)"

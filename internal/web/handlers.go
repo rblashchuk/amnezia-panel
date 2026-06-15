@@ -13,16 +13,21 @@ import (
 )
 
 type Handler struct {
-	WG wg.Source
-	DB *db.DB
+	WGSources []wg.Source
+	DB        *db.DB
 }
 
 func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
+	source, ok := h.sourceByID(r.URL.Query().Get("source_id"))
+	if !ok {
+		http.Error(w, "unknown source_id", http.StatusBadRequest)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	dump, err := h.WG.Dump(ctx)
+	dump, err := source.Dump(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -38,7 +43,18 @@ func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(peers)
 }
 
+func (h *Handler) Sources(w http.ResponseWriter, r *http.Request) {
+	sources := make([]model.Source, 0, len(h.WGSources))
+	for _, source := range h.WGSources {
+		sources = append(sources, source.Info())
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sources)
+}
+
 type TrafficResponse struct {
+	SourceID      string         `json:"source_id"`
 	PublicKey     string         `json:"public_key"`
 	RangeSeconds  int64          `json:"range_seconds"`
 	BucketSeconds int64          `json:"bucket_seconds"`
@@ -54,6 +70,12 @@ type TrafficPoint struct {
 }
 
 func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
+	source, ok := h.sourceByID(r.URL.Query().Get("source_id"))
+	if !ok {
+		http.Error(w, "unknown source_id", http.StatusBadRequest)
+		return
+	}
+
 	publicKey := r.URL.Query().Get("public_key")
 	if publicKey == "" {
 		http.Error(w, "public_key is required", http.StatusBadRequest)
@@ -69,13 +91,13 @@ func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	since := time.Now().Add(-rangeDuration)
-	samples, err := h.DB.TrafficSamples(publicKey, since)
+	samples, err := h.DB.TrafficSamples(source.Info().ID, publicKey, since)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	response := buildTrafficResponse(publicKey, rangeDuration, bucketDuration, samples)
+	response := buildTrafficResponse(source.Info().ID, publicKey, rangeDuration, bucketDuration, samples)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -114,7 +136,7 @@ func defaultBucket(rangeDuration time.Duration) time.Duration {
 	}
 }
 
-func buildTrafficResponse(publicKey string, rangeDuration, bucketDuration time.Duration, samples []model.TrafficSample) TrafficResponse {
+func buildTrafficResponse(sourceID, publicKey string, rangeDuration, bucketDuration time.Duration, samples []model.TrafficSample) TrafficResponse {
 	pointsByBucket := make(map[int64]*TrafficPoint)
 	var rxTotal, txTotal uint64
 
@@ -140,6 +162,7 @@ func buildTrafficResponse(publicKey string, rangeDuration, bucketDuration time.D
 	sortTrafficPoints(points)
 
 	return TrafficResponse{
+		SourceID:      sourceID,
 		PublicKey:     publicKey,
 		RangeSeconds:  int64(rangeDuration.Seconds()),
 		BucketSeconds: int64(bucketDuration.Seconds()),
@@ -147,6 +170,20 @@ func buildTrafficResponse(publicKey string, rangeDuration, bucketDuration time.D
 		TxBytes:       txTotal,
 		Points:        points,
 	}
+}
+
+func (h *Handler) sourceByID(sourceID string) (wg.Source, bool) {
+	if sourceID == "" && len(h.WGSources) > 0 {
+		return h.WGSources[0], true
+	}
+
+	for _, source := range h.WGSources {
+		if source.Info().ID == sourceID {
+			return source, true
+		}
+	}
+
+	return nil, false
 }
 
 func sortTrafficPoints(points []TrafficPoint) {

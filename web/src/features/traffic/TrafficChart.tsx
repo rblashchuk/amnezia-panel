@@ -24,15 +24,15 @@ export function TrafficChart({ data, isLoading, error }: Props) {
   const option = useMemo(() => {
     const labels = points.map((point) => new Date(point.collected_at).toLocaleString())
 
-    return {
-      color: ['#64d2ff', '#20d67b'],
+	return {
+		color: ['#ffae5b', '#d7d8db'],
       tooltip: {
         trigger: 'axis',
         valueFormatter: (value: number) => formatBytes(value),
       },
-      legend: {
-        top: 0,
-        textStyle: { color: '#9aa4b2' },
+		legend: {
+			top: 0,
+			textStyle: { color: '#868b91' },
       },
       grid: {
         left: 12,
@@ -45,17 +45,17 @@ export function TrafficChart({ data, isLoading, error }: Props) {
         type: 'category',
         boundaryGap: false,
         data: labels,
-        axisLine: { lineStyle: { color: '#303744' } },
-        axisLabel: { color: '#7d8795', hideOverlap: true },
+			axisLine: { lineStyle: { color: '#2c2d30' } },
+			axisLabel: { color: '#868b91', hideOverlap: true },
         axisTick: { show: false },
       },
       yAxis: {
         type: 'value',
         axisLabel: {
-          color: '#7d8795',
-          formatter: (value: number) => formatBytes(value),
-        },
-        splitLine: { lineStyle: { color: '#252b35' } },
+				color: '#868b91',
+				formatter: (value: number) => formatBytes(value),
+			},
+			splitLine: { lineStyle: { color: '#2c2d30' } },
       },
       series: [
         {
