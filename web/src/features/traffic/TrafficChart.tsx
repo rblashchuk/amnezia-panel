@@ -16,8 +16,8 @@ type Props = {
 }
 
 export function TrafficChart({ data, isLoading, error }: Props) {
-  const chartRef = useRef<HTMLDivElement | null>(null)
-  const instanceRef = useRef<EChartsType | null>(null)
+	const chartRef = useRef<HTMLDivElement | null>(null)
+	const instanceRef = useRef<EChartsType | null>(null)
 
   const points = useMemo(() => data?.points ?? [], [data?.points])
 
@@ -93,21 +93,30 @@ export function TrafficChart({ data, isLoading, error }: Props) {
     }
   }, [])
 
-  useEffect(() => {
-    instanceRef.current?.setOption(option, true)
-  }, [option])
+	useEffect(() => {
+		if (!instanceRef.current) return
 
-  if (isLoading) {
-    return <div className="chart-state">Loading traffic history</div>
-  }
+		instanceRef.current.setOption(option, true)
+		instanceRef.current.resize()
+	}, [option, isLoading])
 
-  if (error) {
-    return <div className="chart-state danger">Could not load traffic history: {error.message}</div>
-  }
+	const stateMessage = getStateMessage(isLoading, error, points.length)
 
-  if (points.length === 0) {
-    return <div className="chart-state">No traffic history for this range yet</div>
-  }
+	return (
+		<div className="chart-shell">
+			<div ref={chartRef} className="traffic-chart" />
+			{stateMessage && (
+				<div className={`chart-state ${error ? 'danger' : ''}`}>
+					{stateMessage}
+				</div>
+			)}
+		</div>
+	)
+}
 
-  return <div ref={chartRef} className="traffic-chart" />
+function getStateMessage(isLoading: boolean, error: Error | null, pointCount: number) {
+	if (isLoading) return 'Loading traffic history'
+	if (error) return `Could not load traffic history: ${error.message}`
+	if (pointCount === 0) return 'No traffic history for this range yet'
+	return ''
 }
