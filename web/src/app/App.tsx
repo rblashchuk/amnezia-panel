@@ -138,7 +138,7 @@ export function App() {
                 <div className="panel-header">
                   <div>
                     <div className="panel-title">Traffic history</div>
-                    <div className="panel-subtitle">{selectedPeer ? shortKey(selectedPeer.public_key, 44) : 'Select a peer'}</div>
+                    <div className="panel-subtitle">{selectedPeer ? peerDisplayName(selectedPeer) : 'Select a peer'}</div>
                   </div>
                   <div className="segmented" role="group" aria-label="Traffic range">
                     {ranges.map((item) => (
@@ -274,8 +274,12 @@ function PeerList({
             >
               <span className="status-dot" />
               <span className="peer-main">
-                <span className="peer-key">{shortKey(peer.public_key)}</span>
-                <span className="peer-meta">{formatRelativeHandshake(peer.last_handshake)}</span>
+                <span className={peer.name ? 'peer-name' : 'peer-key'}>{peerDisplayName(peer)}</span>
+                <span className="peer-meta">
+                  {peer.name
+                    ? `${shortKey(peer.public_key)} - ${formatRelativeHandshake(peer.last_handshake)}`
+                    : formatRelativeHandshake(peer.last_handshake)}
+                </span>
               </span>
               <span className="peer-traffic">
                 <span>{formatBytes(peer.rx_bytes)}</span>
@@ -287,6 +291,10 @@ function PeerList({
       </div>
     </section>
   )
+}
+
+function peerDisplayName(peer: Peer) {
+  return peer.name || shortKey(peer.public_key)
 }
 
 function DebugPanel({ data, isLoading, error }: { data?: DebugInfo; isLoading: boolean; error: Error | null }) {

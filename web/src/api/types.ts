@@ -1,5 +1,8 @@
 export type Peer = {
   public_key: string
+  name?: string
+  creation_date?: string
+  allowed_ips?: string
   rx_bytes: number
   tx_bytes: number
   last_handshake: string

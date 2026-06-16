@@ -39,6 +39,10 @@ func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if clients, err := source.Clients(ctx); err == nil {
+		enrichPeers(peers, clients)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(peers)
 }
@@ -195,5 +199,18 @@ func sortTrafficPoints(points []TrafficPoint) {
 			j--
 		}
 		points[j+1] = point
+	}
+}
+
+func enrichPeers(peers []model.Peer, clients map[string]model.ClientMetadata) {
+	for i := range peers {
+		client, ok := clients[peers[i].PublicKey]
+		if !ok {
+			continue
+		}
+
+		peers[i].Name = client.Name
+		peers[i].CreationDate = client.CreationDate
+		peers[i].AllowedIPs = client.AllowedIPs
 	}
 }

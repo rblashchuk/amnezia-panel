@@ -303,12 +303,20 @@ h1 {
   min-width: 0;
 }
 
-.peer-key {
+.peer-key,
+.peer-name {
   overflow: hidden;
-  font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.peer-key {
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.peer-name {
+  font-weight: 700;
 }
 
 .peer-meta,

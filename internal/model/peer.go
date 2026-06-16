@@ -4,9 +4,19 @@ import "time"
 
 type Peer struct {
 	PublicKey     string    `json:"public_key"`
+	Name          string    `json:"name,omitempty"`
+	CreationDate  string    `json:"creation_date,omitempty"`
+	AllowedIPs    string    `json:"allowed_ips,omitempty"`
 	RxBytes       uint64    `json:"rx_bytes"`
 	TxBytes       uint64    `json:"tx_bytes"`
 	LastHandshake time.Time `json:"last_handshake"`
+}
+
+type ClientMetadata struct {
+	ClientID     string `json:"client_id"`
+	Name         string `json:"name,omitempty"`
+	CreationDate string `json:"creation_date,omitempty"`
+	AllowedIPs   string `json:"allowed_ips,omitempty"`
 }
 
 type Source struct {

@@ -11,6 +11,7 @@ import (
 type Source interface {
 	Info() model.Source
 	Dump(ctx context.Context) ([]byte, error)
+	Clients(ctx context.Context) (map[string]model.ClientMetadata, error)
 }
 
 type DockerSource struct {
@@ -51,6 +52,30 @@ func (s *DockerSource) Dump(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("wg error: %s: %w", string(out), err)
 	}
 	return out, nil
+}
+
+func (s *DockerSource) Clients(ctx context.Context) (map[string]model.ClientMetadata, error) {
+	path := clientsTablePath(s.Protocol)
+	if path == "" {
+		return map[string]model.ClientMetadata{}, nil
+	}
+
+	cmd := exec.CommandContext(
+		ctx,
+		"docker",
+		"exec",
+		s.Container,
+		"sh",
+		"-c",
+		fmt.Sprintf("cat %s 2>/dev/null || true", path),
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("clientsTable error: %s: %w", string(out), err)
+	}
+
+	return ParseClientsTable(out)
 }
 
 func (s *DockerSource) command() string {
@@ -98,6 +123,10 @@ func (s *LocalSource) Dump(ctx context.Context) ([]byte, error) {
 	return out, nil
 }
 
+func (s *LocalSource) Clients(ctx context.Context) (map[string]model.ClientMetadata, error) {
+	return map[string]model.ClientMetadata{}, nil
+}
+
 func (s *LocalSource) command() string {
 	if s.Command != "" {
 		return s.Command
@@ -106,4 +135,19 @@ func (s *LocalSource) command() string {
 		return "awg"
 	}
 	return "wg"
+}
+
+func clientsTablePath(protocol string) string {
+	switch protocol {
+	case "wireguard":
+		return "/opt/amnezia/wireguard/clientsTable"
+	case "awg":
+		return "/opt/amnezia/awg/clientsTable"
+	case "openvpn":
+		return "/opt/amnezia/openvpn/clientsTable"
+	case "xray":
+		return "/opt/amnezia/xray/clientsTable"
+	default:
+		return ""
+	}
 }
