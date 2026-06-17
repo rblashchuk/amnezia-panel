@@ -172,6 +172,17 @@ ssh_identity_files() {
     | sort
 }
 
+read_lines_into_array() {
+  local array_name="$1"
+  shift
+  local line
+
+  eval "$array_name=()"
+  while IFS= read -r line; do
+    eval "$array_name+=(\"\$line\")"
+  done < <("$@")
+}
+
 if [ -z "$VPS_AUTH_METHOD" ]; then
   echo ""
   echo "${BOLD}SSH authentication method:${RESET}"
@@ -186,7 +197,7 @@ fi
 case "$VPS_AUTH_METHOD" in
   1|ssh-config|config)
     VPS_AUTH_METHOD="ssh-config"
-    mapfile -t ssh_hosts < <(ssh_config_hosts)
+    read_lines_into_array ssh_hosts ssh_config_hosts
     select_option VPS_HOST "SSH config Host alias" "${ssh_hosts[@]}" || true
     ask VPS_HOST "SSH config Host alias"
     ;;
@@ -195,7 +206,7 @@ case "$VPS_AUTH_METHOD" in
     ask VPS_HOST "VPS host or IP"
     ask VPS_USER "SSH user" "root"
     ask VPS_PORT "SSH port" "22"
-    mapfile -t identity_files < <(ssh_identity_files)
+    read_lines_into_array identity_files ssh_identity_files
     select_option VPS_SSH_KEY "SSH private key" "${identity_files[@]}" || true
     ask VPS_SSH_KEY "SSH private key path"
     ;;
