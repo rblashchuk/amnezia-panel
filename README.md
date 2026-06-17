@@ -1,6 +1,13 @@
 # Amnezia Panel
 
-Lightweight panel for self-hosted AmneziaVPN / WireGuard live stats and traffic history.
+Amnezia Panel is a local admin panel for self-hosted AmneziaVPN servers.
+
+It is designed to make day-to-day administration more convenient than working
+only through the AmneziaVPN client.
+
+The key extra feature is built-in traffic monitoring. A lightweight collector
+runs on the VPS, stores traffic history, and the local panel shows live counters
+and historical charts for each client.
 
 ## Install
 
@@ -50,3 +57,9 @@ Run as root:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scripts/uninstall.sh | bash
 ```
+
+## TODO
+
+- Add full client create, revoke, rename, and export flows.
+- Expand monitoring support across more AmneziaVPN protocols.
+- Improve the local installer and saved connection profiles.

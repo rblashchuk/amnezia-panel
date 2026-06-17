@@ -5,6 +5,7 @@ REPO_IMAGE="${REPO_IMAGE:-ghcr.io/rblashchuk/amnezia-panel:latest}"
 
 LOCAL_CONTAINER_NAME="${LOCAL_CONTAINER_NAME:-amnezia-panel}"
 REMOTE_CONTAINER_NAME="${REMOTE_CONTAINER_NAME:-amnezia-panel-collector}"
+REMOTE_OLD_CONTAINER_NAME="${REMOTE_OLD_CONTAINER_NAME:-amnezia-panel}"
 LEGACY_CONTAINER_NAME="${LEGACY_CONTAINER_NAME:-vpn-panel}"
 
 DATA_ROOT="${DATA_ROOT:-$HOME/.amnezia-panel}"
@@ -15,6 +16,7 @@ REMOTE_DATA_DIR="$REMOTE_DATA_ROOT/data"
 LOCAL_PANEL_PORT="${LOCAL_PANEL_PORT:-${PANEL_PORT:-9000}}"
 LOCAL_TUNNEL_PORT="${LOCAL_TUNNEL_PORT:-19000}"
 REMOTE_COLLECTOR_PORT="${REMOTE_COLLECTOR_PORT:-9000}"
+LOCAL_DOCKER_PLATFORM="${LOCAL_DOCKER_PLATFORM:-}"
 
 VPN_SOURCE="${VPN_SOURCE:-docker}"
 VPN_ENDPOINTS="${VPN_ENDPOINTS:-}"
@@ -28,6 +30,14 @@ VPS_AUTH_METHOD="${VPS_AUTH_METHOD:-}"
 VPS_PASSWORD="${VPS_PASSWORD:-}"
 
 TTY="/dev/tty"
+
+if [ -z "$LOCAL_DOCKER_PLATFORM" ]; then
+  case "$(uname -m)" in
+    arm64|aarch64)
+      LOCAL_DOCKER_PLATFORM="linux/amd64"
+      ;;
+  esac
+fi
 
 if [ -t 1 ]; then
   BOLD="$(tput bold 2>/dev/null || true)"
@@ -292,6 +302,7 @@ step 4 "Installing VPS collector..."
 remote_env=(
   "REPO_IMAGE=$REPO_IMAGE"
   "REMOTE_CONTAINER_NAME=$REMOTE_CONTAINER_NAME"
+  "REMOTE_OLD_CONTAINER_NAME=$REMOTE_OLD_CONTAINER_NAME"
   "LEGACY_CONTAINER_NAME=$LEGACY_CONTAINER_NAME"
   "REMOTE_DATA_ROOT=$REMOTE_DATA_ROOT"
   "REMOTE_DATA_DIR=$REMOTE_DATA_DIR"
@@ -371,7 +382,14 @@ if [ "$VPN_SOURCE" = "docker" ] && [ -z "$VPN_ENDPOINTS" ]; then
 fi
 
 run_sudo docker rm -f "$REMOTE_CONTAINER_NAME" 2>/dev/null || true
+run_sudo docker rm -f "$REMOTE_OLD_CONTAINER_NAME" 2>/dev/null || true
 run_sudo docker rm -f "$LEGACY_CONTAINER_NAME" 2>/dev/null || true
+
+if run_sudo docker ps --format '{{.Names}}\t{{.Ports}}' | grep -q "127.0.0.1:${REMOTE_COLLECTOR_PORT}->"; then
+  echo "ERROR: 127.0.0.1:${REMOTE_COLLECTOR_PORT} is already used by another Docker container"
+  run_sudo docker ps --format 'table {{.Names}}\t{{.Ports}}' | grep "127.0.0.1:${REMOTE_COLLECTOR_PORT}->" || true
+  exit 1
+fi
 
 docker_args=(
   -d
@@ -424,11 +442,20 @@ step 6 "Installing local panel proxy..."
 mkdir -p "$DATA_DIR"
 chmod 755 "$DATA_DIR"
 
-docker pull "$REPO_IMAGE"
+local_pull_args=()
+local_run_args=()
+if [ -n "$LOCAL_DOCKER_PLATFORM" ]; then
+  warn "Local Docker platform override: $LOCAL_DOCKER_PLATFORM"
+  local_pull_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
+  local_run_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
+fi
+
+docker pull "${local_pull_args[@]}" "$REPO_IMAGE"
 
 docker rm -f "$LOCAL_CONTAINER_NAME" 2>/dev/null || true
 
 docker run -d \
+  "${local_run_args[@]}" \
   --name "$LOCAL_CONTAINER_NAME" \
   --restart unless-stopped \
   --add-host host.docker.internal:host-gateway \
