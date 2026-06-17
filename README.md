@@ -9,6 +9,9 @@ The key extra feature is built-in traffic monitoring. A lightweight collector
 runs on the VPS, stores traffic history, and the local panel shows live counters
 and historical charts for each client.
 
+The local web panel and the VPS collector are shipped as separate Docker images.
+The collector image is intentionally minimal because VPS disks are often small.
+
 ## Install
 
 Run on your local machine:

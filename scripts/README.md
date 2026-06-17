@@ -26,7 +26,7 @@ directory. When it runs through a pipe, it downloads the required modules from
 - `installer/local.sh` - Docker image update check, local SSH tunnel, and local
   web proxy container startup.
 - `installer/remote.sh` - Docker installation on the VPS when needed and VPS
-  collector startup.
+  collector startup with the lightweight collector image.
 - `installer/profile.sh` - local profile persistence and `amnezia-panel`
   command installation.
 - `installer/main.sh` - top-level installer flow that connects all steps.
@@ -36,6 +36,11 @@ directory. When it runs through a pipe, it downloads the required modules from
 The installer stores connection settings as named local profiles under
 `~/.amnezia-panel/profiles`. The currently selected profile name is stored in
 `~/.amnezia-panel/current-profile`.
+
+When the installer is run again, it uses the current profile as the default
+profile name. If that profile exists, its saved SSH and panel settings are
+loaded before the interactive SSH questions, so the user only has to answer
+fields that are still missing.
 
 For compatibility with earlier installations, the installer also writes
 `~/.amnezia-panel/profile.env`, and the `amnezia-panel` command can still use it
@@ -63,3 +68,8 @@ local image and does not update the VPS collector image.
 The installed `amnezia-panel` command performs the same update check before it
 starts the saved SSH tunnel and local web panel. Use `amnezia-panel
 --no-update-check` to skip this check for a single run.
+
+The local panel image is `ghcr.io/rblashchuk/amnezia-panel`. The VPS collector
+image is `ghcr.io/rblashchuk/amnezia-panel-collector`. Before pulling the
+collector image, the installer removes old panel/collector containers and prunes
+unused legacy images to avoid filling small VPS disks.

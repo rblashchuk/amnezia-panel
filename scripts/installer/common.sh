@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-REPO_IMAGE="${REPO_IMAGE:-ghcr.io/rblashchuk/amnezia-panel:latest}"
+PANEL_IMAGE="${PANEL_IMAGE:-${REPO_IMAGE:-ghcr.io/rblashchuk/amnezia-panel:latest}}"
+COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-ghcr.io/rblashchuk/amnezia-panel-collector:latest}"
+REPO_IMAGE="$PANEL_IMAGE"
 
 LOCAL_CONTAINER_NAME="${LOCAL_CONTAINER_NAME:-amnezia-panel}"
 REMOTE_CONTAINER_NAME="${REMOTE_CONTAINER_NAME:-amnezia-panel-collector}"

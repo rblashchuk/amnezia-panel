@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/rblashchuk/amnezia-panel/internal/dockerapi"
 )
 
 type DebugInfo struct {
@@ -184,36 +187,35 @@ func readNetworkInfo() []NetworkInfo {
 }
 
 func dockerContainers() []ContainerInfo {
-	out, err := exec.Command(
-		"docker",
-		"ps",
-		"-a",
-		"--format", "{{.Names}}\t{{.Status}}\t{{.Image}}",
-	).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	containers, err := dockerapi.New().Containers(ctx)
 	if err != nil {
 		return []ContainerInfo{{
 			Name:   "docker",
-			Status: strings.TrimSpace(string(out)),
+			Status: err.Error(),
 		}}
 	}
 
 	var result []ContainerInfo
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line == "" {
+	for _, container := range containers {
+		name := dockerContainerName(container.Names)
+		if name != "amnezia-awg2" && name != "amnezia-wireguard" {
 			continue
 		}
-		fields := strings.Split(line, "\t")
-		if fields[0] != "amnezia-awg2" && fields[0] != "amnezia-wireguard" {
-			continue
-		}
-		info := ContainerInfo{Name: fields[0]}
-		if len(fields) > 1 {
-			info.Status = fields[1]
-		}
-		if len(fields) > 2 {
-			info.Image = fields[2]
-		}
-		result = append(result, info)
+		result = append(result, ContainerInfo{
+			Name:   name,
+			Status: container.Status,
+			Image:  container.Image,
+		})
 	}
 	return result
+}
+
+func dockerContainerName(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(names[0], "/")
 }

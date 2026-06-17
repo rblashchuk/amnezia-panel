@@ -27,11 +27,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image
+      - name: Build and push panel image
         uses: docker/build-push-action@v6
         with:
           context: .
+          target: panel
           push: true
           tags: |
             ghcr.io/rblashchuk/amnezia-panel:${{ github.ref_name }}
             ghcr.io/rblashchuk/amnezia-panel:latest
+
+      - name: Build and push collector image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: collector
+          push: true
+          tags: |
+            ghcr.io/rblashchuk/amnezia-panel-collector:${{ github.ref_name }}
+            ghcr.io/rblashchuk/amnezia-panel-collector:latest

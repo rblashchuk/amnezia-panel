@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/rblashchuk/amnezia-panel/internal/dockerapi"
 	"github.com/rblashchuk/amnezia-panel/internal/model"
 )
 
@@ -20,6 +21,7 @@ type DockerSource struct {
 	Label     string
 	Container string
 	Command   string
+	Docker    *dockerapi.Client
 }
 
 func (s *DockerSource) Info() model.Source {
@@ -36,20 +38,14 @@ func (s *DockerSource) Info() model.Source {
 func (s *DockerSource) Dump(ctx context.Context) ([]byte, error) {
 	command := s.command()
 
-	cmd := exec.CommandContext(
-		ctx,
-		"docker",
-		"exec",
-		s.Container,
+	out, err := s.docker().Exec(ctx, s.Container, []string{
 		command,
 		"show",
 		"all",
 		"dump",
-	)
-
-	out, err := cmd.CombinedOutput()
+	})
 	if err != nil {
-		return nil, fmt.Errorf("wg error: %s: %w", string(out), err)
+		return nil, fmt.Errorf("wg error: %w", err)
 	}
 	return out, nil
 }
@@ -60,22 +56,24 @@ func (s *DockerSource) Clients(ctx context.Context) (map[string]model.ClientMeta
 		return map[string]model.ClientMetadata{}, nil
 	}
 
-	cmd := exec.CommandContext(
-		ctx,
-		"docker",
-		"exec",
-		s.Container,
+	out, err := s.docker().Exec(ctx, s.Container, []string{
 		"sh",
 		"-c",
 		fmt.Sprintf("cat %s 2>/dev/null || true", path),
-	)
-
-	out, err := cmd.CombinedOutput()
+	})
 	if err != nil {
-		return nil, fmt.Errorf("clientsTable error: %s: %w", string(out), err)
+		return nil, fmt.Errorf("clientsTable error: %w", err)
 	}
 
 	return ParseClientsTable(out)
+}
+
+func (s *DockerSource) docker() *dockerapi.Client {
+	if s.Docker != nil {
+		return s.Docker
+	}
+	s.Docker = dockerapi.New()
+	return s.Docker
 }
 
 func (s *DockerSource) command() string {

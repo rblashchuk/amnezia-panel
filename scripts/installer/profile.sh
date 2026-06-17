@@ -13,7 +13,9 @@ save_profile() {
   : > "$PROFILE_PATH"
 
   write_profile_value PROFILE_NAME "$PROFILE_NAME"
-  write_profile_value REPO_IMAGE "$REPO_IMAGE"
+  write_profile_value REPO_IMAGE "$PANEL_IMAGE"
+  write_profile_value PANEL_IMAGE "$PANEL_IMAGE"
+  write_profile_value COLLECTOR_IMAGE "$COLLECTOR_IMAGE"
   write_profile_value LOCAL_CONTAINER_NAME "$LOCAL_CONTAINER_NAME"
   write_profile_value REMOTE_CONTAINER_NAME "$REMOTE_CONTAINER_NAME"
   write_profile_value REMOTE_OLD_CONTAINER_NAME "$REMOTE_OLD_CONTAINER_NAME"
@@ -37,6 +39,36 @@ save_profile() {
 
   printf '%s\n' "$PROFILE_NAME" > "$CURRENT_PROFILE_PATH"
   cp "$PROFILE_PATH" "$DATA_ROOT/profile.env"
+}
+
+current_profile_name() {
+  if [ -f "$CURRENT_PROFILE_PATH" ]; then
+    sed -n '1p' "$CURRENT_PROFILE_PATH"
+  else
+    echo "default"
+  fi
+}
+
+load_profile_if_exists() {
+  local selected_profile_name="$PROFILE_NAME"
+  local selected_profile_path="$PROFILE_PATH"
+
+  if [ -f "$PROFILE_PATH" ]; then
+    # shellcheck disable=SC1090
+    . "$PROFILE_PATH"
+    PROFILE_NAME="$selected_profile_name"
+    PROFILE_PATH="$selected_profile_path"
+    info "Loaded connection profile: $PROFILE_NAME"
+    return
+  fi
+
+  if [ "$PROFILE_NAME" = "default" ] && [ -f "$DATA_ROOT/profile.env" ]; then
+    # shellcheck disable=SC1090
+    . "$DATA_ROOT/profile.env"
+    PROFILE_NAME="default"
+    PROFILE_PATH="$selected_profile_path"
+    info "Loaded legacy connection profile: default"
+  fi
 }
 
 install_cli() {
@@ -142,6 +174,9 @@ fi
 # shellcheck disable=SC1090
 . "$PROFILE_PATH"
 PROFILE_NAME="${PROFILE_NAME:-$(basename "$PROFILE_PATH" .env)}"
+PANEL_IMAGE="${PANEL_IMAGE:-${REPO_IMAGE:-ghcr.io/rblashchuk/amnezia-panel:latest}}"
+COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-ghcr.io/rblashchuk/amnezia-panel-collector:latest}"
+REPO_IMAGE="$PANEL_IMAGE"
 printf '%s\n' "$PROFILE_NAME" > "$CURRENT_PROFILE_PATH"
 
 SSH_TARGET="$VPS_HOST"
@@ -181,6 +216,7 @@ ask_yes_no() {
 update_remote_collector() {
   local remote_env=(
     "REPO_IMAGE=$REPO_IMAGE"
+    "COLLECTOR_IMAGE=${COLLECTOR_IMAGE:-ghcr.io/rblashchuk/amnezia-panel-collector:latest}"
     "REMOTE_CONTAINER_NAME=${REMOTE_CONTAINER_NAME:-amnezia-panel-collector}"
     "REMOTE_OLD_CONTAINER_NAME=${REMOTE_OLD_CONTAINER_NAME:-amnezia-panel}"
     "LEGACY_CONTAINER_NAME=${LEGACY_CONTAINER_NAME:-vpn-panel}"
@@ -195,6 +231,10 @@ update_remote_collector() {
   "${SSH_CMD[@]}" "${SSH_ARGS[@]}" "$SSH_TARGET" "cat > '$remote_script_path' && chmod 700 '$remote_script_path'" <<'REMOTE_UPDATE_SCRIPT'
 set -euo pipefail
 
+remote_info() {
+  echo "REMOTE: $*"
+}
+
 run_sudo() {
   if [ "$(id -u)" -eq 0 ]; then
     "$@"
@@ -203,12 +243,57 @@ run_sudo() {
   fi
 }
 
-run_sudo docker info >/dev/null
+run_sudo_timeout() {
+  local seconds="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    run_sudo timeout "$seconds" "$@"
+  else
+    run_sudo "$@"
+  fi
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+  remote_info "checking sudo access"
+  sudo -v
+  remote_info "sudo access granted"
+else
+  remote_info "running as root"
+fi
+
+remote_info "checking Docker daemon"
+run_sudo_timeout 30 docker info >/dev/null
+remote_info "preparing data directory: $REMOTE_DATA_DIR"
 run_sudo mkdir -p "$REMOTE_DATA_DIR"
 run_sudo chmod 755 "$REMOTE_DATA_DIR"
-run_sudo docker pull "$REPO_IMAGE"
+cleanup_panel_images() {
+  remote_info "cleaning unused old panel images"
+  run_sudo docker image prune -f >/dev/null 2>&1 || true
+  for image in \
+    ghcr.io/rblashchuk/amnezia-panel \
+    ghcr.io/rblashchuk/amnezia-panel-collector \
+    ghcr.io/rblashchuk/vpn-panel; do
+    run_sudo docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
+      | awk -v repo="$image" '$1 ~ "^" repo ":" { print $2 }' \
+      | sort -u \
+      | while IFS= read -r image_id; do
+          [ -n "$image_id" ] || continue
+          run_sudo docker rmi "$image_id" >/dev/null 2>&1 || true
+        done
+  done
+}
+
+remote_info "removing current collector before image cleanup"
+run_sudo docker rm -f "$REMOTE_CONTAINER_NAME" 2>/dev/null || true
+run_sudo docker rm -f "$REMOTE_OLD_CONTAINER_NAME" 2>/dev/null || true
+run_sudo docker rm -f "$LEGACY_CONTAINER_NAME" 2>/dev/null || true
+cleanup_panel_images
+remote_info "pulling collector image: $COLLECTOR_IMAGE"
+run_sudo docker pull "$COLLECTOR_IMAGE"
 
 if [ "$VPN_SOURCE" = "docker" ] && [ -z "$VPN_ENDPOINTS" ]; then
+  remote_info "discovering Amnezia containers"
   endpoints=()
 
   if run_sudo docker ps -a --format '{{.Names}}' | grep -Fxq "amnezia-awg2"; then
@@ -227,10 +312,6 @@ if [ "$VPN_SOURCE" = "docker" ] && [ -z "$VPN_ENDPOINTS" ]; then
   VPN_ENDPOINTS="$(IFS=,; echo "${endpoints[*]}")"
 fi
 
-run_sudo docker rm -f "$REMOTE_CONTAINER_NAME" 2>/dev/null || true
-run_sudo docker rm -f "$REMOTE_OLD_CONTAINER_NAME" 2>/dev/null || true
-run_sudo docker rm -f "$LEGACY_CONTAINER_NAME" 2>/dev/null || true
-
 docker_args=(
   -d
   --name "$REMOTE_CONTAINER_NAME"
@@ -244,7 +325,8 @@ docker_args=(
   -e "VPN_PANEL_TOKEN=$VPN_PANEL_TOKEN"
 )
 
-run_sudo docker run "${docker_args[@]}" "$REPO_IMAGE" >/dev/null
+remote_info "starting collector container"
+run_sudo docker run "${docker_args[@]}" "$COLLECTOR_IMAGE" >/dev/null
 echo "VPS collector updated"
 REMOTE_UPDATE_SCRIPT
 

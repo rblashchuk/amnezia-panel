@@ -12,6 +12,7 @@ docker rm -f "$LEGACY_CONTAINER_NAME" 2>/dev/null || true
 echo "[2/2] Removing image..."
 
 docker rmi ghcr.io/rblashchuk/amnezia-panel:latest 2>/dev/null || true
+docker rmi ghcr.io/rblashchuk/amnezia-panel-collector:latest 2>/dev/null || true
 docker rmi ghcr.io/rblashchuk/vpn-panel:latest 2>/dev/null || true
 
 echo ""
