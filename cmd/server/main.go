@@ -48,9 +48,6 @@ func serveCollector() {
 	mux.HandleFunc("/api/sources", web.RequireBearerToken(apiToken, handler.Sources))
 	mux.HandleFunc("/api/debug", web.RequireBearerToken(apiToken, handler.Debug))
 	mux.HandleFunc("/api/traffic", web.RequireBearerToken(apiToken, handler.Traffic))
-	mux.HandleFunc("/peers", handler.PeersPage)
-
-	mux.Handle("/", web.AppHandler())
 
 	listenAddr := env("VPN_PANEL_LISTEN", "127.0.0.1:9000")
 	log.Println("collector mode listening on", listenAddr)

@@ -4,57 +4,37 @@ Lightweight panel for self-hosted AmneziaVPN / WireGuard live stats and traffic 
 
 ## Install
 
-Run as root:
+Run on your local machine:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scripts/install.sh | bash
 ```
 
-The installer supports two WireGuard data sources:
+The installer asks for VPS SSH connection settings, installs the collector on
+the VPS, starts an SSH tunnel, and runs the web panel locally at
+`http://127.0.0.1:9000`.
 
-```bash
-# Auto-discover supported Amnezia Docker containers.
-VPN_SOURCE=docker bash scripts/install.sh
+The VPS installation step needs root privileges to install/start Docker, create
+`/opt/amnezia-panel`, and run the collector container. If the SSH user is not
+`root`, the remote host may ask for the user's sudo password. The installer does
+not store that password.
 
-# Or pass sources explicitly: protocol:container:command.
-VPN_ENDPOINTS=awg:amnezia-awg2:awg,wireguard:amnezia-wireguard:wg bash scripts/install.sh
+During setup you can choose one of the SSH authentication methods:
 
-# Read wg stats from the host network namespace.
-VPN_SOURCE=local bash scripts/install.sh
-```
+- SSH config / agent / interactive prompt
+- identity file
+- password-only SSH login
 
-Supported Amnezia containers for Docker mode are `amnezia-awg2` and `amnezia-wireguard`.
-
-The panel listens on `127.0.0.1:9000` on the host by default. Use an SSH tunnel or a reverse proxy with authentication for remote access.
-
-## Local proxy mode
-
-Run the collector on the VPS with the regular installer. Optionally protect the
-collector API with a token:
+Optional non-interactive settings:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scripts/install.sh \
-  | VPN_PANEL_TOKEN=change-me bash
+  | VPS_HOST=203.0.113.10 VPS_USER=root VPS_PORT=22 bash
 ```
 
-Create an SSH tunnel from your local machine to the VPS collector:
-
-```bash
-ssh -N -L 19000:127.0.0.1:9000 user@your-vps
-```
-
-Then install/run the local proxy with the same installer:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scripts/install.sh \
-  | VPN_PANEL_MODE=local-proxy \
-    VPN_REMOTE_URL=http://host.docker.internal:19000 \
-    VPN_REMOTE_TOKEN=change-me \
-    bash
-```
-
-In this mode the local process serves the web UI on localhost and forwards
-read-only API calls to the VPS collector.
+Supported Amnezia containers are `amnezia-awg2` and `amnezia-wireguard`.
+You can override auto-discovery with `VPN_ENDPOINTS`, for example:
+`VPN_ENDPOINTS=awg:amnezia-awg2:awg,wireguard:amnezia-wireguard:wg`.
 
 ## Uninstall
 
