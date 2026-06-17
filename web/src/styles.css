@@ -267,7 +267,7 @@ h1 {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 70px;
+  min-height: 76px;
   padding: 12px;
   color: var(--text);
   text-align: left;
@@ -304,19 +304,27 @@ h1 {
 }
 
 .peer-key,
-.peer-name {
+.peer-name,
+.peer-id {
   overflow: hidden;
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.peer-key {
+.peer-key,
+.peer-id {
   font-family: "SFMono-Regular", Consolas, monospace;
 }
 
 .peer-name {
   font-weight: 700;
+}
+
+.peer-id {
+  margin-top: 2px;
+  color: var(--soft);
+  font-size: 11px;
 }
 
 .peer-meta,

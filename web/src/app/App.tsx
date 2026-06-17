@@ -275,10 +275,9 @@ function PeerList({
               <span className="status-dot" />
               <span className="peer-main">
                 <span className={peer.name ? 'peer-name' : 'peer-key'}>{peerDisplayName(peer)}</span>
+                {peer.name && <span className="peer-id">{shortKey(peer.public_key, 34)}</span>}
                 <span className="peer-meta">
-                  {peer.name
-                    ? `${shortKey(peer.public_key)} - ${formatRelativeHandshake(peer.last_handshake)}`
-                    : formatRelativeHandshake(peer.last_handshake)}
+                  {formatRelativeHandshake(peer.last_handshake)}
                 </span>
               </span>
               <span className="peer-traffic">

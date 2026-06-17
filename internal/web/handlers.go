@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rblashchuk/amnezia-panel/internal/db"
@@ -42,6 +44,7 @@ func (h *Handler) Peers(w http.ResponseWriter, r *http.Request) {
 	if clients, err := source.Clients(ctx); err == nil {
 		enrichPeers(peers, clients)
 	}
+	sortPeers(peers)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(peers)
@@ -213,4 +216,22 @@ func enrichPeers(peers []model.Peer, clients map[string]model.ClientMetadata) {
 		peers[i].CreationDate = client.CreationDate
 		peers[i].AllowedIPs = client.AllowedIPs
 	}
+}
+
+func sortPeers(peers []model.Peer) {
+	sort.SliceStable(peers, func(i, j int) bool {
+		leftName := peerSortName(peers[i])
+		rightName := peerSortName(peers[j])
+		if leftName == rightName {
+			return peers[i].PublicKey < peers[j].PublicKey
+		}
+		return leftName < rightName
+	})
+}
+
+func peerSortName(peer model.Peer) string {
+	if peer.Name != "" {
+		return strings.ToLower(peer.Name)
+	}
+	return strings.ToLower(peer.PublicKey)
 }

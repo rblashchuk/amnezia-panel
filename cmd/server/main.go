@@ -12,6 +12,15 @@ import (
 )
 
 func main() {
+	if remoteURL := os.Getenv("VPN_REMOTE_URL"); remoteURL != "" {
+		serveRemoteProxy(remoteURL, os.Getenv("VPN_REMOTE_TOKEN"))
+		return
+	}
+
+	serveCollector()
+}
+
+func serveCollector() {
 	dbPath := env("VPN_PANEL_DB", "/app/data/vpn.db")
 	database, err := db.New(dbPath)
 	if err != nil {
@@ -33,17 +42,41 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	apiToken := os.Getenv("VPN_PANEL_TOKEN")
 
-	mux.HandleFunc("/api/peers", handler.Peers)
-	mux.HandleFunc("/api/sources", handler.Sources)
-	mux.HandleFunc("/api/debug", handler.Debug)
-	mux.HandleFunc("/api/traffic", handler.Traffic)
+	mux.HandleFunc("/api/peers", web.RequireBearerToken(apiToken, handler.Peers))
+	mux.HandleFunc("/api/sources", web.RequireBearerToken(apiToken, handler.Sources))
+	mux.HandleFunc("/api/debug", web.RequireBearerToken(apiToken, handler.Debug))
+	mux.HandleFunc("/api/traffic", web.RequireBearerToken(apiToken, handler.Traffic))
 	mux.HandleFunc("/peers", handler.PeersPage)
 
 	mux.Handle("/", web.AppHandler())
 
 	listenAddr := env("VPN_PANEL_LISTEN", "127.0.0.1:9000")
-	log.Println("listening on", listenAddr)
+	log.Println("collector mode listening on", listenAddr)
+	log.Fatal(http.ListenAndServe(listenAddr, mux))
+}
+
+func serveRemoteProxy(remoteURL, token string) {
+	proxy, err := web.NewCollectorProxy(remoteURL, token)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/peers", proxy.Peers)
+	mux.HandleFunc("/api/sources", proxy.Sources)
+	mux.HandleFunc("/api/debug", proxy.Debug)
+	mux.HandleFunc("/api/traffic", proxy.Traffic)
+	mux.HandleFunc("/peers", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+	})
+
+	mux.Handle("/", web.AppHandler())
+
+	listenAddr := env("VPN_PANEL_LISTEN", "127.0.0.1:9000")
+	log.Println("local proxy mode listening on", listenAddr, "remote", remoteURL)
 	log.Fatal(http.ListenAndServe(listenAddr, mux))
 }
 
