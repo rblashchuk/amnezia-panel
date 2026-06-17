@@ -89,8 +89,13 @@ install_local_panel() {
 
 detect_local_docker_socket() {
   LOCAL_DOCKER_SOCKET=""
+  LOCAL_DOCKER_SOCKET_DAEMON_SIDE=""
 
   case "${DOCKER_HOST:-}" in
+    unix://*/.colima/*/docker.sock)
+      LOCAL_DOCKER_SOCKET="/var/run/docker.sock"
+      LOCAL_DOCKER_SOCKET_DAEMON_SIDE="yes"
+      ;;
     unix://*)
       LOCAL_DOCKER_SOCKET="${DOCKER_HOST#unix://}"
       ;;
@@ -104,11 +109,15 @@ detect_local_docker_socket() {
     local docker_host
     docker_host="$(docker context inspect --format '{{ .Endpoints.docker.Host }}' 2>/dev/null || true)"
     case "$docker_host" in
+      unix://*/.colima/*/docker.sock)
+        LOCAL_DOCKER_SOCKET="/var/run/docker.sock"
+        LOCAL_DOCKER_SOCKET_DAEMON_SIDE="yes"
+        ;;
       unix://*) LOCAL_DOCKER_SOCKET="${docker_host#unix://}" ;;
     esac
   fi
 
-  if [ -n "$LOCAL_DOCKER_SOCKET" ] && [ ! -S "$LOCAL_DOCKER_SOCKET" ]; then
+  if [ -n "$LOCAL_DOCKER_SOCKET" ] && [ "$LOCAL_DOCKER_SOCKET_DAEMON_SIDE" != "yes" ] && [ ! -S "$LOCAL_DOCKER_SOCKET" ]; then
     warn "Docker socket not found at $LOCAL_DOCKER_SOCKET; update checks from UI will be unavailable."
     LOCAL_DOCKER_SOCKET=""
   fi

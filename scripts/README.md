@@ -78,6 +78,10 @@ Docker socket is mounted into the panel container. The UI performs this check on
 open and then roughly once per hour, and shows `ap update` when an update is
 available.
 
+On Colima, the installer mounts the daemon-side `/var/run/docker.sock` instead
+of the macOS client socket under `~/.colima`, because bind mounts are resolved
+inside the Colima VM.
+
 The local panel image is `ghcr.io/rblashchuk/amnezia-panel`. The VPS collector
 image is `ghcr.io/rblashchuk/amnezia-panel-collector`. Before pulling the
 collector image, the installer removes old panel/collector containers and prunes
