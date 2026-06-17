@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
   Boxes,
+  CalendarClock,
   Clock3,
   Cpu,
   Database,
@@ -35,12 +36,17 @@ type Tab = 'traffic' | 'debug'
 type RangeSelection =
   | { type: 'preset'; value: TrafficRange; label: string }
   | { type: 'chart'; from: string; to: string; label: string }
+  | { type: 'custom'; from: string; to: string; label: string }
+
+type RangeEditor = 'closed' | 'custom'
 
 export function App() {
   const [tab, setTab] = useState<Tab>('traffic')
   const [selectedSourceID, setSelectedSourceID] = useState('')
   const [selectedKey, setSelectedKey] = useState('')
   const [rangeSelection, setRangeSelection] = useState<RangeSelection>({ type: 'preset', value: '6h', label: '6H' })
+  const [rangeEditor, setRangeEditor] = useState<RangeEditor>('closed')
+  const [customDraft, setCustomDraft] = useState(() => defaultCustomRange())
 
   const sourcesQuery = useQuery({
     queryKey: ['sources'],
@@ -160,18 +166,63 @@ export function App() {
                         key={item.value}
                         type="button"
                         className={rangeSelection.type === 'preset' && item.value === rangeSelection.value ? 'active' : ''}
-                        onClick={() => setRangeSelection({ type: 'preset', value: item.value, label: item.label })}
+                        onClick={() => {
+                          setRangeEditor('closed')
+                          setRangeSelection({ type: 'preset', value: item.value, label: item.label })
+                        }}
                       >
                         {item.label}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      className={rangeEditor === 'custom' || rangeSelection.type === 'custom' ? 'active' : ''}
+                      onClick={() => setRangeEditor((current) => (current === 'custom' ? 'closed' : 'custom'))}
+                    >
+                      Custom
+                    </button>
                   </div>
                 </div>
 
                 <div className="range-status">
-                  <span>{rangeSelection.type === 'chart' ? 'Chart selection' : 'Preset range'}</span>
+                  <span>{rangeSelection.type === 'chart' ? 'Chart selection' : rangeSelection.type === 'custom' ? 'Custom range' : 'Preset range'}</span>
                   <strong>{rangeSelection.label}</strong>
                 </div>
+
+                {rangeEditor === 'custom' ? (
+                  <form
+                    className="custom-range"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      if (!isValidCustomRange(customDraft)) return
+                      setRangeSelection(customDraftToSelection(customDraft))
+                      setRangeEditor('closed')
+                    }}
+                  >
+                    <label>
+                      <span>From</span>
+                      <input
+                        type="datetime-local"
+                        value={customDraft.from}
+                        max={customDraft.to}
+                        onChange={(event) => setCustomDraft((current) => ({ ...current, from: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>To</span>
+                      <input
+                        type="datetime-local"
+                        value={customDraft.to}
+                        min={customDraft.from}
+                        onChange={(event) => setCustomDraft((current) => ({ ...current, to: event.target.value }))}
+                      />
+                    </label>
+                    <button className="apply-range" type="submit" disabled={!isValidCustomRange(customDraft)}>
+                      <CalendarClock size={15} />
+                      Apply
+                    </button>
+                  </form>
+                ) : null}
 
                 <div className="metric-row">
                   <Metric label="RX in range" value={formatBytes(trafficQuery.data?.rx_bytes)} icon={<Download size={16} />} />
@@ -221,6 +272,36 @@ function formatRangeLabel(from: string, to: string) {
     minute: '2-digit',
   })
   return `${formatter.format(new Date(from))} - ${formatter.format(new Date(to))}`
+}
+
+function defaultCustomRange() {
+  const to = new Date()
+  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
+  return {
+    from: formatDateTimeLocal(from),
+    to: formatDateTimeLocal(to),
+  }
+}
+
+function formatDateTimeLocal(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
+function customDraftToSelection(range: { from: string; to: string }): RangeSelection {
+  const from = new Date(range.from).toISOString()
+  const to = new Date(range.to).toISOString()
+  return {
+    type: 'custom',
+    from,
+    to,
+    label: formatRangeLabel(from, to),
+  }
+}
+
+function isValidCustomRange(range: { from: string; to: string }) {
+  if (!range.from || !range.to) return false
+  return new Date(range.from).getTime() < new Date(range.to).getTime()
 }
 
 function SourceSwitcher({

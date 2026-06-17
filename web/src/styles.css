@@ -342,7 +342,7 @@ h1 {
 
 .segmented {
   display: grid;
-  grid-template-columns: repeat(4, minmax(46px, 1fr));
+  grid-template-columns: repeat(5, minmax(46px, 1fr));
 }
 
 .range-status {
@@ -365,6 +365,57 @@ h1 {
   color: var(--text);
   font-weight: 650;
   text-align: right;
+}
+
+.custom-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.custom-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.custom-range input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  color-scheme: dark;
+}
+
+.apply-range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 12px;
+  color: var(--text);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  cursor: pointer;
+}
+
+.apply-range:disabled {
+  color: var(--soft);
+  background: var(--panel-2);
+  border-color: var(--border);
+  cursor: not-allowed;
 }
 
 .metric-row {
@@ -524,6 +575,7 @@ h1 {
 
   .summary-grid,
   .metric-row,
+  .custom-range,
   .debug-grid {
     grid-template-columns: 1fr;
   }

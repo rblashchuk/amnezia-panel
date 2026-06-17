@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as echarts from 'echarts/core'
-import { DataZoomComponent, GridComponent, LegendComponent, ToolboxComponent, TooltipComponent } from 'echarts/components'
+import { BrushComponent, GridComponent, LegendComponent, ToolboxComponent, TooltipComponent } from 'echarts/components'
 import { LineChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { TrafficResponse } from '../../api/types'
 import { formatBytes } from '../../lib/format'
 
-echarts.use([DataZoomComponent, GridComponent, LegendComponent, ToolboxComponent, TooltipComponent, LineChart, CanvasRenderer])
+echarts.use([BrushComponent, GridComponent, LegendComponent, ToolboxComponent, TooltipComponent, LineChart, CanvasRenderer])
 
 type Props = {
   data?: TrafficResponse
@@ -20,18 +20,12 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect }: Props) {
 	const chartRef = useRef<HTMLDivElement | null>(null)
 	const instanceRef = useRef<EChartsType | null>(null)
   const onRangeSelectRef = useRef(onRangeSelect)
-  const timestampsRef = useRef<number[]>([])
 
   const points = useMemo(() => data?.points ?? [], [data?.points])
-  const timestamps = useMemo(() => points.map((point) => new Date(point.collected_at).getTime()), [points])
 
   useEffect(() => {
     onRangeSelectRef.current = onRangeSelect
   }, [onRangeSelect])
-
-  useEffect(() => {
-    timestampsRef.current = timestamps
-  }, [timestamps])
 
   const option = useMemo(() => {
     const rxData = points.map((point) => [new Date(point.collected_at).getTime(), point.rx_bytes])
@@ -59,23 +53,31 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect }: Props) {
           },
         },
         feature: {
-          dataZoom: {
-            yAxisIndex: 'none',
+          brush: {
+            type: ['lineX', 'clear'],
             title: {
-              zoom: 'Select range',
-              back: 'Reset zoom',
+              lineX: 'Select range',
+              clear: 'Clear selection',
             },
           },
-          restore: {
-            title: 'Reset chart',
-          },
+        },
+      },
+      brush: {
+        toolbox: ['lineX', 'clear'],
+        xAxisIndex: 0,
+        brushMode: 'single',
+        transformable: false,
+        brushStyle: {
+          color: 'rgba(255, 174, 91, 0.14)',
+          borderColor: '#ffae5b',
+          borderWidth: 1,
         },
       },
       grid: {
         left: 12,
         right: 18,
         top: 42,
-        bottom: 62,
+        bottom: 12,
         containLabel: true,
       },
       xAxis: {
@@ -93,26 +95,6 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect }: Props) {
 			},
 			splitLine: { lineStyle: { color: '#2c2d30' } },
       },
-      dataZoom: [
-        {
-          type: 'inside',
-          xAxisIndex: 0,
-          filterMode: 'none',
-          minSpan: 1,
-        },
-        {
-          type: 'slider',
-          xAxisIndex: 0,
-          height: 28,
-          bottom: 16,
-          filterMode: 'none',
-          borderColor: '#2c2d30',
-          fillerColor: 'rgba(255, 174, 91, 0.16)',
-          handleStyle: { color: '#ffae5b' },
-          moveHandleStyle: { color: '#ffc27d' },
-          textStyle: { color: '#868b91' },
-        },
-      ],
       series: [
         {
           name: 'RX',
@@ -140,18 +122,18 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect }: Props) {
     instanceRef.current = echarts.init(chartRef.current, undefined, { renderer: 'canvas' })
 
     const resize = () => instanceRef.current?.resize()
-    const handleDataZoom = (event: unknown) => {
-      const range = extractZoomRange(event, timestampsRef.current)
+    const handleBrushEnd = (event: unknown) => {
+      const range = extractBrushRange(event)
       if (!range) return
       onRangeSelectRef.current(new Date(range.from).toISOString(), new Date(range.to).toISOString())
     }
 
-    instanceRef.current.on('datazoom', handleDataZoom)
+    instanceRef.current.on('brushEnd', handleBrushEnd)
     window.addEventListener('resize', resize)
 
     return () => {
       window.removeEventListener('resize', resize)
-      instanceRef.current?.off('datazoom', handleDataZoom)
+      instanceRef.current?.off('brushEnd', handleBrushEnd)
       instanceRef.current?.dispose()
       instanceRef.current = null
     }
@@ -178,49 +160,24 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect }: Props) {
 	)
 }
 
-type DataZoomEvent = {
-  start?: number
-  end?: number
-  startValue?: number
-  endValue?: number
-  batch?: Array<{
-    start?: number
-    end?: number
-    startValue?: number
-    endValue?: number
+type BrushEndEvent = {
+  areas?: Array<{
+    coordRange?: [number | string, number | string]
   }>
 }
 
-function extractZoomRange(event: unknown, timestamps: number[]) {
-  if (timestamps.length < 2) return null
+function extractBrushRange(event: unknown) {
+  const payload = event as BrushEndEvent
+  const coordRange = payload.areas?.find((area) => area.coordRange)?.coordRange
+  if (!coordRange) return null
 
-  const payload = event as DataZoomEvent
-  const zoom = payload.batch?.[0] ?? payload
-  const from = normalizeZoomValue(zoom.startValue, zoom.start, timestamps)
-  const to = normalizeZoomValue(zoom.endValue, zoom.end, timestamps)
-
+  const from = Number(coordRange[0])
+  const to = Number(coordRange[1])
   if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) {
     return null
   }
 
   return { from, to }
-}
-
-function normalizeZoomValue(value: number | undefined, percent: number | undefined, timestamps: number[]) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    if (value >= 0 && value < timestamps.length && Number.isInteger(value)) {
-      return timestamps[value]
-    }
-    return value
-  }
-
-  if (typeof percent === 'number' && Number.isFinite(percent)) {
-    const min = timestamps[0]
-    const max = timestamps[timestamps.length - 1]
-    return min + ((max - min) * percent) / 100
-  }
-
-  return Number.NaN
 }
 
 function getStateMessage(isLoading: boolean, error: Error | null, pointCount: number) {
