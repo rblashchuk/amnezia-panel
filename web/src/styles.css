@@ -379,6 +379,31 @@ h1 {
   text-align: right;
 }
 
+.range-status-current {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.clear-range-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 9px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+
+.clear-range-button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .custom-range {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;

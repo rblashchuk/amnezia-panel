@@ -13,16 +13,18 @@ type Props = {
   data?: TrafficResponse
   isLoading: boolean
   error: Error | null
+  clearSignal: number
   onRangeSelect: (from: string, to: string) => void
   onSelectionClear: () => void
 }
 
-export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectionClear }: Props) {
+export function TrafficChart({ data, isLoading, error, clearSignal, onRangeSelect, onSelectionClear }: Props) {
 	const chartRef = useRef<HTMLDivElement | null>(null)
 	const instanceRef = useRef<EChartsType | null>(null)
   const onRangeSelectRef = useRef(onRangeSelect)
   const onSelectionClearRef = useRef(onSelectionClear)
   const lastAppliedRangeRef = useRef('')
+  const lastClearSignalRef = useRef(clearSignal)
 
   const points = useMemo(() => data?.points ?? [], [data?.points])
 
@@ -172,6 +174,17 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
 		instanceRef.current.setOption(option, true)
 		instanceRef.current.resize()
 	}, [option, isLoading])
+
+  useEffect(() => {
+    if (!instanceRef.current || clearSignal === lastClearSignalRef.current) return
+
+    lastClearSignalRef.current = clearSignal
+    lastAppliedRangeRef.current = ''
+    instanceRef.current.dispatchAction({
+      type: 'brush',
+      areas: [],
+    })
+  }, [clearSignal])
 
 	const stateMessage = getStateMessage(isLoading, error, points.length)
 

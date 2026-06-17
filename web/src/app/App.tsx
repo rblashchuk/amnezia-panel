@@ -16,6 +16,7 @@ import {
   Server,
   TerminalSquare,
   Upload,
+  X,
 } from 'lucide-react'
 import { checkUpdates, getDebugInfo, getPeers, getSources, getTraffic, getTrafficTotal } from '../api/peers'
 import type { DebugInfo, Peer, Source, TrafficRequest, TrafficRange, UpdateCheckResponse } from '../api/types'
@@ -48,6 +49,7 @@ export function App() {
   const [lastPresetRange, setLastPresetRange] = useState<Extract<RangeSelection, { type: 'preset' }>>({ type: 'preset', value: '6h', label: '6H' })
   const [rangeEditor, setRangeEditor] = useState<RangeEditor>('closed')
   const [customDraft, setCustomDraft] = useState(() => defaultCustomRange())
+  const [clearBrushSignal, setClearBrushSignal] = useState(0)
   const customSelection = useMemo(() => parseCustomRange(customDraft), [customDraft])
 
   const sourcesQuery = useQuery({
@@ -126,6 +128,11 @@ export function App() {
   const rangeRx = totalTrafficQuery.data?.rx_bytes
   const rangeTx = totalTrafficQuery.data?.tx_bytes
   const hasUpdate = Boolean(updateQuery.data?.available)
+  const clearChartSelection = () => {
+    setRangeEditor('closed')
+    setRangeSelection(lastPresetRange)
+    setClearBrushSignal((value) => value + 1)
+  }
 
   return (
     <div className="shell">
@@ -219,7 +226,15 @@ export function App() {
 
                 <div className="range-status">
                   <span>{rangeSelection.type === 'chart' ? 'Chart selection' : rangeSelection.type === 'custom' ? 'Custom range' : 'Preset range'}</span>
-                  <strong>{rangeSelection.label}</strong>
+                  <div className="range-status-current">
+                    <strong>{rangeSelection.label}</strong>
+                    {rangeSelection.type === 'chart' ? (
+                      <button className="clear-range-button" type="button" onClick={clearChartSelection}>
+                        <X size={14} />
+                        Clear range
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 {rangeEditor === 'custom' ? (
@@ -272,6 +287,7 @@ export function App() {
                   data={trafficQuery.data}
                   isLoading={trafficQuery.isLoading}
                   error={trafficQuery.error}
+                  clearSignal={clearBrushSignal}
                   onRangeSelect={(from, to) => {
                     setRangeEditor('closed')
                     setRangeSelection({
@@ -281,10 +297,7 @@ export function App() {
                       label: formatRangeLabel(from, to),
                     })
                   }}
-                  onSelectionClear={() => {
-                    setRangeEditor('closed')
-                    setRangeSelection(lastPresetRange)
-                  }}
+                  onSelectionClear={clearChartSelection}
                 />
               </section>
             </section>
