@@ -154,18 +154,13 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
     const handleBrushEnd = (event: unknown) => {
       handleBrushEvent(event)
     }
-    const handleBrushSelected = (event: unknown) => {
-      handleBrushEvent(event)
-    }
 
     instanceRef.current.on('brushEnd', handleBrushEnd)
-    instanceRef.current.on('brushSelected', handleBrushSelected)
     window.addEventListener('resize', resize)
 
     return () => {
       window.removeEventListener('resize', resize)
       instanceRef.current?.off('brushEnd', handleBrushEnd)
-      instanceRef.current?.off('brushSelected', handleBrushSelected)
       instanceRef.current?.dispose()
       instanceRef.current = null
     }
