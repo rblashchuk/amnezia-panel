@@ -1,0 +1,41 @@
+# Scripts
+
+This directory contains the public installer entrypoint and its internal
+installer modules.
+
+## Entrypoint
+
+`install.sh` is the only public installer script. It can be run from a local
+checkout or through the GitHub one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scripts/install.sh | bash
+```
+
+When `install.sh` runs from a local checkout, it uses the adjacent `installer`
+directory. When it runs through a pipe, it downloads the required modules from
+`scripts/installer` into a temporary directory and then hands control to
+`installer/main.sh`.
+
+## Installer Modules
+
+- `installer/common.sh` - shared variables, colors, logging, and simple
+  interactive prompts.
+- `installer/ssh.sh` - SSH settings collection, `~/.ssh/config` Host alias
+  selection, identity file selection, and final SSH command construction.
+- `installer/local.sh` - Docker image update check, local SSH tunnel, and local
+  web proxy container startup.
+- `installer/remote.sh` - Docker installation on the VPS when needed and VPS
+  collector startup.
+- `installer/profile.sh` - local profile persistence and `amnezia-panel`
+  command installation.
+- `installer/main.sh` - top-level installer flow that connects all steps.
+
+## Image Updates
+
+If the local `amnezia-panel` container already exists, the installer pulls the
+latest Docker image as an update candidate and compares it with the image id
+used by the installed container. When a newer image is available, the user gets
+an interactive prompt. If the user accepts, both the local panel and the VPS
+collector are updated. If the user declines, the installer keeps the current
+local image and does not update the VPS collector image.

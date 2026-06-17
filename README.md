@@ -21,6 +21,10 @@ The installer asks for VPS SSH connection settings, installs the collector on
 the VPS, starts an SSH tunnel, and runs the web panel locally at
 `http://127.0.0.1:9000`.
 
+After installation, the `amnezia-panel` command is installed to
+`~/.local/bin`. Running it later starts the saved SSH tunnel and local web panel
+again.
+
 The VPS installation step needs root privileges to install/start Docker, create
 `/opt/amnezia-panel`, and run the collector container. If the SSH user is not
 `root`, the remote host may ask for the user's sudo password. The installer does
@@ -46,10 +50,6 @@ curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scr
   | VPS_HOST=203.0.113.10 VPS_USER=root VPS_PORT=22 bash
 ```
 
-Supported Amnezia containers are `amnezia-awg2` and `amnezia-wireguard`.
-You can override auto-discovery with `VPN_ENDPOINTS`, for example:
-`VPN_ENDPOINTS=awg:amnezia-awg2:awg,wireguard:amnezia-wireguard:wg`.
-
 ## Uninstall
 
 Run as root:
@@ -62,4 +62,4 @@ curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scr
 
 - Add full client create, revoke, rename, and export flows.
 - Expand monitoring support across more AmneziaVPN protocols.
-- Improve the local installer and saved connection profiles.
+- Add support for multiple saved connection profiles.
