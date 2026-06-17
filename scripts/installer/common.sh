@@ -9,6 +9,9 @@ LEGACY_CONTAINER_NAME="${LEGACY_CONTAINER_NAME:-vpn-panel}"
 
 DATA_ROOT="${DATA_ROOT:-$HOME/.amnezia-panel}"
 DATA_DIR="$DATA_ROOT/data"
+PROFILES_DIR="$DATA_ROOT/profiles"
+CURRENT_PROFILE_PATH="$DATA_ROOT/current-profile"
+PROFILE_NAME="${PROFILE_NAME:-}"
 PROFILE_PATH="$DATA_ROOT/profile.env"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 CLI_PATH="$BIN_DIR/amnezia-panel"
@@ -105,4 +108,21 @@ ask_yes_no() {
     y|Y|yes|YES) printf -v "$var_name" '%s' "yes" ;;
     *) printf -v "$var_name" '%s' "no" ;;
   esac
+}
+
+sanitize_profile_name() {
+  local value="$1"
+  value="${value// /-}"
+  value="$(printf '%s' "$value" | tr -cd '[:alnum:]_.-')"
+
+  if [ -z "$value" ]; then
+    value="default"
+  fi
+
+  printf '%s\n' "$value"
+}
+
+set_profile_paths() {
+  PROFILE_NAME="$(sanitize_profile_name "${PROFILE_NAME:-default}")"
+  PROFILE_PATH="$PROFILES_DIR/$PROFILE_NAME.env"
 }

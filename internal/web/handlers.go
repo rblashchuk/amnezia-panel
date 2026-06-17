@@ -89,7 +89,12 @@ func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rangeDuration := parseDurationParam(r.URL.Query().Get("range"), 24*time.Hour)
+	now := time.Now()
+	from, to, rangeDuration, err := parseTrafficWindow(r.URL.Query(), now)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	bucketDuration := parseDurationParam(r.URL.Query().Get("bucket"), defaultBucket(rangeDuration))
 
 	if rangeDuration <= 0 || bucketDuration <= 0 {
@@ -97,14 +102,13 @@ func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	since := time.Now().Add(-rangeDuration)
-	samples, err := h.DB.TrafficSamples(source.Info().ID, publicKey, since)
+	samples, err := h.DB.TrafficSamples(source.Info().ID, publicKey, from)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	response := buildTrafficResponse(source.Info().ID, publicKey, rangeDuration, bucketDuration, samples)
+	response := buildTrafficResponse(source.Info().ID, publicKey, rangeDuration, bucketDuration, to, samples)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -112,6 +116,70 @@ func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) PeersPage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+}
+
+func parseTrafficWindow(query map[string][]string, now time.Time) (time.Time, time.Time, time.Duration, error) {
+	fromValue := firstQueryValue(query, "from")
+	toValue := firstQueryValue(query, "to")
+	if fromValue == "" && toValue == "" {
+		rangeDuration := parseDurationParam(firstQueryValue(query, "range"), 24*time.Hour)
+		to := now
+		return to.Add(-rangeDuration), to, rangeDuration, nil
+	}
+
+	to := now
+	var err error
+	if toValue != "" {
+		to, err = parseTimeParam(toValue)
+		if err != nil {
+			return time.Time{}, time.Time{}, 0, err
+		}
+	}
+
+	if fromValue == "" {
+		rangeDuration := parseDurationParam(firstQueryValue(query, "range"), 24*time.Hour)
+		return to.Add(-rangeDuration), to, rangeDuration, nil
+	}
+
+	from, err := parseTimeParam(fromValue)
+	if err != nil {
+		return time.Time{}, time.Time{}, 0, err
+	}
+
+	rangeDuration := to.Sub(from)
+	if rangeDuration <= 0 {
+		return time.Time{}, time.Time{}, 0, errInvalidTrafficWindow
+	}
+
+	return from, to, rangeDuration, nil
+}
+
+var errInvalidTrafficWindow = trafficWindowError("from must be earlier than to")
+
+type trafficWindowError string
+
+func (e trafficWindowError) Error() string {
+	return string(e)
+}
+
+func firstQueryValue(query map[string][]string, key string) string {
+	values := query[key]
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func parseTimeParam(value string) (time.Time, error) {
+	if unixSeconds, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return time.Unix(unixSeconds, 0), nil
+	}
+
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}, trafficWindowError("from and to must be RFC3339 timestamps or unix seconds")
+	}
+	return parsed, nil
 }
 
 func parseDurationParam(value string, fallback time.Duration) time.Duration {
@@ -143,11 +211,15 @@ func defaultBucket(rangeDuration time.Duration) time.Duration {
 	}
 }
 
-func buildTrafficResponse(sourceID, publicKey string, rangeDuration, bucketDuration time.Duration, samples []model.TrafficSample) TrafficResponse {
+func buildTrafficResponse(sourceID, publicKey string, rangeDuration, bucketDuration time.Duration, to time.Time, samples []model.TrafficSample) TrafficResponse {
 	pointsByBucket := make(map[int64]*TrafficPoint)
 	var rxTotal, txTotal uint64
 
 	for _, sample := range samples {
+		if sample.CollectedAt.After(to) {
+			continue
+		}
+
 		bucketUnix := sample.CollectedAt.Truncate(bucketDuration).Unix()
 		point, ok := pointsByBucket[bucketUnix]
 		if !ok {

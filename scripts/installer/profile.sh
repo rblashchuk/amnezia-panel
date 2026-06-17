@@ -8,10 +8,11 @@ write_profile_value() {
 }
 
 save_profile() {
-  mkdir -p "$DATA_ROOT"
+  mkdir -p "$PROFILES_DIR"
   umask 077
   : > "$PROFILE_PATH"
 
+  write_profile_value PROFILE_NAME "$PROFILE_NAME"
   write_profile_value REPO_IMAGE "$REPO_IMAGE"
   write_profile_value LOCAL_CONTAINER_NAME "$LOCAL_CONTAINER_NAME"
   write_profile_value REMOTE_CONTAINER_NAME "$REMOTE_CONTAINER_NAME"
@@ -27,6 +28,9 @@ save_profile() {
   write_profile_value VPS_USER "$VPS_USER"
   write_profile_value VPS_PORT "$VPS_PORT"
   write_profile_value VPS_SSH_KEY "$VPS_SSH_KEY"
+
+  printf '%s\n' "$PROFILE_NAME" > "$CURRENT_PROFILE_PATH"
+  cp "$PROFILE_PATH" "$DATA_ROOT/profile.env"
 }
 
 install_cli() {
@@ -36,16 +40,90 @@ install_cli() {
 set -euo pipefail
 
 DATA_ROOT="${AMNEZIA_PANEL_HOME:-$HOME/.amnezia-panel}"
-PROFILE_PATH="$DATA_ROOT/profile.env"
+PROFILES_DIR="$DATA_ROOT/profiles"
+CURRENT_PROFILE_PATH="$DATA_ROOT/current-profile"
+LEGACY_PROFILE_PATH="$DATA_ROOT/profile.env"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  amnezia-panel [--profile NAME]
+  amnezia-panel profiles
+  amnezia-panel current
+  amnezia-panel use NAME
+USAGE
+}
+
+current_profile_name() {
+  if [ -f "$CURRENT_PROFILE_PATH" ]; then
+    sed -n '1p' "$CURRENT_PROFILE_PATH"
+  else
+    echo "default"
+  fi
+}
+
+list_profiles() {
+  if [ -d "$PROFILES_DIR" ]; then
+    found=0
+    for profile in "$PROFILES_DIR"/*.env; do
+      [ -e "$profile" ] || continue
+      found=1
+      basename "$profile" .env
+    done
+    [ "$found" -eq 1 ] && return
+  fi
+
+  [ -f "$LEGACY_PROFILE_PATH" ] && echo "default"
+}
+
+PROFILE_NAME=""
+
+case "${1:-}" in
+  profiles)
+    list_profiles
+    exit 0
+    ;;
+  current)
+    current_profile_name
+    exit 0
+    ;;
+  use)
+    [ -n "${2:-}" ] || { usage >&2; exit 1; }
+    PROFILE_NAME="$2"
+    ;;
+  --profile|-p)
+    [ -n "${2:-}" ] || { usage >&2; exit 1; }
+    PROFILE_NAME="$2"
+    ;;
+  ""|start)
+    PROFILE_NAME="$(current_profile_name)"
+    ;;
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "ERROR: unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+PROFILE_PATH="$PROFILES_DIR/$PROFILE_NAME.env"
+if [ ! -f "$PROFILE_PATH" ] && [ "$PROFILE_NAME" = "default" ] && [ -f "$LEGACY_PROFILE_PATH" ]; then
+  PROFILE_PATH="$LEGACY_PROFILE_PATH"
+fi
 
 if [ ! -f "$PROFILE_PATH" ]; then
   echo "ERROR: profile not found: $PROFILE_PATH" >&2
-  echo "Run the installer first." >&2
+  echo "Run the installer first or choose an existing profile with: amnezia-panel profiles" >&2
   exit 1
 fi
 
 # shellcheck disable=SC1090
 . "$PROFILE_PATH"
+PROFILE_NAME="${PROFILE_NAME:-$(basename "$PROFILE_PATH" .env)}"
+printf '%s\n' "$PROFILE_NAME" > "$CURRENT_PROFILE_PATH"
 
 SSH_TARGET="$VPS_HOST"
 SSH_CMD=(ssh)
@@ -77,6 +155,15 @@ if [ ! -e "$CONTROL_SOCKET" ]; then
     "$SSH_TARGET"
 fi
 
+container_profile=""
+if docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
+  container_profile="$(docker inspect -f '{{ index .Config.Labels "amnezia.panel.profile" }}' "$LOCAL_CONTAINER_NAME" 2>/dev/null || true)"
+fi
+
+if [ -n "$container_profile" ] && [ "$container_profile" != "$PROFILE_NAME" ]; then
+  docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
+
 if docker ps --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
   :
 elif docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
@@ -91,6 +178,7 @@ else
     "${local_run_args[@]}" \
     --name "$LOCAL_CONTAINER_NAME" \
     --restart unless-stopped \
+    --label "amnezia.panel.profile=$PROFILE_NAME" \
     --add-host host.docker.internal:host-gateway \
     -p "127.0.0.1:${LOCAL_PANEL_PORT}:9000" \
     -v "$DATA_DIR:/app/data" \
@@ -102,6 +190,7 @@ fi
 
 echo "Amnezia Panel is running:"
 echo "http://127.0.0.1:${LOCAL_PANEL_PORT}"
+echo "Profile: $PROFILE_NAME"
 CLI_SCRIPT
 
   chmod 700 "$CLI_PATH"

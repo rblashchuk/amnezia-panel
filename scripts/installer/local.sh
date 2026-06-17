@@ -66,6 +66,7 @@ install_local_panel() {
     "${local_run_args[@]}" \
     --name "$LOCAL_CONTAINER_NAME" \
     --restart unless-stopped \
+    --label "amnezia.panel.profile=$PROFILE_NAME" \
     --add-host host.docker.internal:host-gateway \
     -p "127.0.0.1:${LOCAL_PANEL_PORT}:9000" \
     -v "$DATA_DIR:/app/data" \

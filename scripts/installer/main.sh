@@ -15,6 +15,8 @@ INSTALLER_DIR="${INSTALLER_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
 run_install() {
   step 1 "Collecting VPS connection settings..."
+  ask PROFILE_NAME "Connection profile name" "default"
+  set_profile_paths
   collect_ssh_settings
 
   if [ -z "$VPN_PANEL_TOKEN" ]; then
