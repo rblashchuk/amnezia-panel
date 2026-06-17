@@ -21,10 +21,11 @@ VPN_ENDPOINTS="${VPN_ENDPOINTS:-}"
 VPN_PANEL_TOKEN="${VPN_PANEL_TOKEN:-}"
 
 VPS_HOST="${VPS_HOST:-}"
-VPS_USER="${VPS_USER:-root}"
-VPS_PORT="${VPS_PORT:-22}"
+VPS_USER="${VPS_USER:-}"
+VPS_PORT="${VPS_PORT:-}"
 VPS_SSH_KEY="${VPS_SSH_KEY:-}"
 VPS_AUTH_METHOD="${VPS_AUTH_METHOD:-}"
+VPS_PASSWORD="${VPS_PASSWORD:-}"
 
 TTY="/dev/tty"
 
@@ -89,30 +90,132 @@ ask() {
   printf -v "$var_name" '%s' "$current_value"
 }
 
-ask VPS_HOST "VPS host or IP"
-ask VPS_USER "SSH user" "$VPS_USER"
-ask VPS_PORT "SSH port" "$VPS_PORT"
+ask_secret() {
+  local var_name="$1"
+  local prompt="$2"
+  local current_value="${!var_name:-}"
+
+  if [ -n "$current_value" ]; then
+    return
+  fi
+
+  read -r -s -p "$prompt: " current_value < "$TTY"
+  echo ""
+
+  printf -v "$var_name" '%s' "$current_value"
+}
+
+select_option() {
+  local var_name="$1"
+  local prompt="$2"
+  shift 2
+  local options=("$@")
+
+  if [ -n "${!var_name:-}" ]; then
+    return
+  fi
+
+  if [ "${#options[@]}" -eq 0 ]; then
+    return 1
+  fi
+
+  echo ""
+  echo "${BOLD}${prompt}:${RESET}"
+  local i
+  for i in "${!options[@]}"; do
+    printf "  %d) %s\n" "$((i + 1))" "${options[$i]}"
+  done
+  printf "  %d) Manual input\n" "$((${#options[@]} + 1))"
+
+  local choice
+  read -r -p "Choose [1]: " choice < "$TTY"
+  choice="${choice:-1}"
+
+  if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
+    return 1
+  fi
+
+  if [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
+    printf -v "$var_name" '%s' "${options[$((choice - 1))]}"
+    return 0
+  fi
+
+  return 1
+}
+
+ssh_config_hosts() {
+  local config_file="$HOME/.ssh/config"
+  [ -f "$config_file" ] || return 0
+
+  awk '
+    BEGIN { IGNORECASE = 1 }
+    /^[[:space:]]*Host[[:space:]]+/ {
+      for (i = 2; i <= NF; i++) {
+        if ($i !~ /[*?]/) {
+          print $i
+        }
+      }
+    }
+  ' "$config_file" | sort -u
+}
+
+ssh_identity_files() {
+  local ssh_dir="$HOME/.ssh"
+  [ -d "$ssh_dir" ] || return 0
+
+  find "$ssh_dir" -maxdepth 1 -type f ! -name "*.pub" ! -name "config" ! -name "known_hosts*" -print 2>/dev/null \
+    | while IFS= read -r file; do
+        if grep -q "BEGIN .*PRIVATE KEY" "$file" 2>/dev/null; then
+          printf '%s\n' "$file"
+        fi
+      done \
+    | sort
+}
 
 if [ -z "$VPS_AUTH_METHOD" ]; then
   echo ""
   echo "${BOLD}SSH authentication method:${RESET}"
-  echo "  1) SSH config / agent / interactive prompt"
+  echo "  1) SSH config Host alias"
   echo "  2) Identity file"
   echo "  3) Password only"
-  read -r -p "Choose [1]: " VPS_AUTH_METHOD < "$TTY"
-  VPS_AUTH_METHOD="${VPS_AUTH_METHOD:-1}"
+  echo "  4) SSH agent / default SSH behavior"
+  read -r -p "Choose [4]: " VPS_AUTH_METHOD < "$TTY"
+  VPS_AUTH_METHOD="${VPS_AUTH_METHOD:-4}"
 fi
 
 case "$VPS_AUTH_METHOD" in
-  1|default|ssh-config|agent)
-    VPS_AUTH_METHOD="default"
+  1|ssh-config|config)
+    VPS_AUTH_METHOD="ssh-config"
+    mapfile -t ssh_hosts < <(ssh_config_hosts)
+    select_option VPS_HOST "SSH config Host alias" "${ssh_hosts[@]}" || true
+    ask VPS_HOST "SSH config Host alias"
     ;;
   2|identity|identity-file|key)
     VPS_AUTH_METHOD="identity-file"
+    ask VPS_HOST "VPS host or IP"
+    ask VPS_USER "SSH user" "root"
+    ask VPS_PORT "SSH port" "22"
+    mapfile -t identity_files < <(ssh_identity_files)
+    select_option VPS_SSH_KEY "SSH private key" "${identity_files[@]}" || true
     ask VPS_SSH_KEY "SSH private key path"
     ;;
   3|password|password-only)
     VPS_AUTH_METHOD="password-only"
+    ask VPS_HOST "VPS host or IP"
+    ask VPS_USER "SSH user" "root"
+    ask VPS_PORT "SSH port" "22"
+    if command -v sshpass >/dev/null 2>&1; then
+      ask_secret VPS_PASSWORD "SSH password"
+    else
+      warn "sshpass is not installed locally; ssh will ask for the password during connection."
+      warn "The installer will not store the SSH password."
+    fi
+    ;;
+  4|default|agent|ssh-agent)
+    VPS_AUTH_METHOD="default"
+    ask VPS_HOST "VPS host or IP"
+    ask VPS_USER "SSH user" "root"
+    ask VPS_PORT "SSH port" "22"
     ;;
   *)
     die "unsupported VPS_AUTH_METHOD=$VPS_AUTH_METHOD"
@@ -131,8 +234,21 @@ if [ -z "$VPN_PANEL_TOKEN" ]; then
   fi
 fi
 
-SSH_TARGET="${VPS_USER}@${VPS_HOST}"
-SSH_ARGS=(-p "$VPS_PORT" -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+if [ "$VPS_AUTH_METHOD" = "ssh-config" ]; then
+  SSH_TARGET="$VPS_HOST"
+else
+  SSH_TARGET="${VPS_USER}@${VPS_HOST}"
+fi
+
+SSH_CMD=(ssh)
+if [ "$VPS_AUTH_METHOD" = "password-only" ] && [ -n "$VPS_PASSWORD" ] && command -v sshpass >/dev/null 2>&1; then
+  SSH_CMD=(sshpass -p "$VPS_PASSWORD" ssh)
+fi
+
+SSH_ARGS=(-o ServerAliveInterval=30 -o ServerAliveCountMax=3)
+if [ "$VPS_AUTH_METHOD" != "ssh-config" ]; then
+  SSH_ARGS=(-p "$VPS_PORT" "${SSH_ARGS[@]}")
+fi
 if [ "$VPS_AUTH_METHOD" = "identity-file" ]; then
   SSH_ARGS+=(-i "$VPS_SSH_KEY")
 elif [ "$VPS_AUTH_METHOD" = "password-only" ]; then
@@ -158,7 +274,7 @@ fi
 
 step 3 "Checking SSH connection..."
 
-ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "echo connected >/dev/null"
+"${SSH_CMD[@]}" "${SSH_ARGS[@]}" "$SSH_TARGET" "echo connected >/dev/null"
 
 step 4 "Installing VPS collector..."
 
@@ -176,7 +292,7 @@ remote_env=(
 
 REMOTE_SCRIPT_PATH="/tmp/amnezia-panel-install-$$.sh"
 
-ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "cat > '$REMOTE_SCRIPT_PATH' && chmod 700 '$REMOTE_SCRIPT_PATH'" <<'REMOTE_SCRIPT'
+"${SSH_CMD[@]}" "${SSH_ARGS[@]}" "$SSH_TARGET" "cat > '$REMOTE_SCRIPT_PATH' && chmod 700 '$REMOTE_SCRIPT_PATH'" <<'REMOTE_SCRIPT'
 set -euo pipefail
 
 run_sudo() {
@@ -273,7 +389,7 @@ echo "VPS collector installed"
 echo "Sources: $VPN_ENDPOINTS"
 REMOTE_SCRIPT
 
-ssh -tt "${SSH_ARGS[@]}" "$SSH_TARGET" "$(printf '%q ' "${remote_env[@]}") bash '$REMOTE_SCRIPT_PATH'; status=\$?; rm -f '$REMOTE_SCRIPT_PATH'; exit \$status"
+"${SSH_CMD[@]}" -tt "${SSH_ARGS[@]}" "$SSH_TARGET" "$(printf '%q ' "${remote_env[@]}") bash '$REMOTE_SCRIPT_PATH'; status=\$?; rm -f '$REMOTE_SCRIPT_PATH'; exit \$status"
 
 step 5 "Starting SSH tunnel..."
 
@@ -282,11 +398,11 @@ chmod 755 "$DATA_ROOT"
 
 CONTROL_SOCKET="$DATA_ROOT/ssh-tunnel.sock"
 if [ -e "$CONTROL_SOCKET" ]; then
-  ssh "${SSH_ARGS[@]}" -S "$CONTROL_SOCKET" -O exit "$SSH_TARGET" >/dev/null 2>&1 || true
+  "${SSH_CMD[@]}" "${SSH_ARGS[@]}" -S "$CONTROL_SOCKET" -O exit "$SSH_TARGET" >/dev/null 2>&1 || true
   rm -f "$CONTROL_SOCKET"
 fi
 
-ssh "${SSH_ARGS[@]}" \
+"${SSH_CMD[@]}" "${SSH_ARGS[@]}" \
   -M -S "$CONTROL_SOCKET" \
   -fN \
   -L "127.0.0.1:${LOCAL_TUNNEL_PORT}:127.0.0.1:${REMOTE_COLLECTOR_PORT}" \

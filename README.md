@@ -25,6 +25,13 @@ During setup you can choose one of the SSH authentication methods:
 - identity file
 - password-only SSH login
 
+For SSH config and identity-file modes, the installer inspects `~/.ssh` and
+offers known `Host` aliases and private key files as an interactive menu.
+
+For password-only SSH login, install `sshpass` locally if you want to enter the
+SSH password once during setup. Without `sshpass`, the system `ssh` command will
+ask for the password when it connects.
+
 Optional non-interactive settings:
 
 ```bash
