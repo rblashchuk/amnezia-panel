@@ -62,6 +62,7 @@ run_install() {
   success "VPS collector installed on $SSH_TARGET"
   success "local panel proxy is running"
   success "command installed: $CLI_PATH"
+  success "short alias installed: $AP_CLI_PATH"
   echo "Access: http://127.0.0.1:${LOCAL_PANEL_PORT}"
   if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     warn "$BIN_DIR is not in PATH. Add this to your shell profile:"

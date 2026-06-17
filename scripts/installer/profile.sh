@@ -86,6 +86,7 @@ usage() {
   cat <<'USAGE'
 Usage:
   amnezia-panel [--profile NAME]
+  amnezia-panel update [--profile NAME]
   amnezia-panel --no-update-check
   amnezia-panel profiles
   amnezia-panel current
@@ -117,9 +118,14 @@ list_profiles() {
 
 PROFILE_NAME=""
 CHECK_UPDATES="yes"
+RUN_MODE="start"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    update)
+      RUN_MODE="update"
+      CHECK_UPDATES="yes"
+      ;;
     profiles)
       list_profiles
       exit 0
@@ -348,10 +354,41 @@ REMOTE_UPDATE_SCRIPT
 
 local_pull_args=()
 local_run_args=()
+local_docker_socket_args=()
 if [ -n "${LOCAL_DOCKER_PLATFORM:-}" ]; then
   local_pull_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
   local_run_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
 fi
+
+detect_local_docker_socket() {
+  LOCAL_DOCKER_SOCKET=""
+
+  case "${DOCKER_HOST:-}" in
+    unix://*)
+      LOCAL_DOCKER_SOCKET="${DOCKER_HOST#unix://}"
+      ;;
+  esac
+
+  if [ -z "$LOCAL_DOCKER_SOCKET" ] && [ -S /var/run/docker.sock ]; then
+    LOCAL_DOCKER_SOCKET="/var/run/docker.sock"
+  fi
+
+  if [ -z "$LOCAL_DOCKER_SOCKET" ] && command -v docker >/dev/null 2>&1; then
+    local docker_host
+    docker_host="$(docker context inspect --format '{{ .Endpoints.docker.Host }}' 2>/dev/null || true)"
+    case "$docker_host" in
+      unix://*) LOCAL_DOCKER_SOCKET="${docker_host#unix://}" ;;
+    esac
+  fi
+
+  if [ -n "$LOCAL_DOCKER_SOCKET" ] && [ -S "$LOCAL_DOCKER_SOCKET" ]; then
+    local_docker_socket_args+=(-v "$LOCAL_DOCKER_SOCKET:/var/run/docker.sock")
+  else
+    echo "WARNING: Docker socket was not found; update checks from UI will be unavailable."
+  fi
+}
+
+detect_local_docker_socket
 
 LOCAL_IMAGE_TO_RUN="$REPO_IMAGE"
 current_container_image=""
@@ -373,6 +410,8 @@ if [ "$CHECK_UPDATES" = "yes" ]; then
         echo "Keeping the currently installed image."
         LOCAL_IMAGE_TO_RUN="$current_container_image"
       fi
+    elif [ "$RUN_MODE" = "update" ]; then
+      echo "Amnezia Panel is already up to date."
     fi
   else
     echo "WARNING: update check timed out or failed; starting the installed panel."
@@ -413,6 +452,7 @@ elif docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; the
 else
   docker run -d \
     "${local_run_args[@]}" \
+    "${local_docker_socket_args[@]}" \
     --name "$LOCAL_CONTAINER_NAME" \
     --restart unless-stopped \
     --label "amnezia.panel.profile=$PROFILE_NAME" \
@@ -422,6 +462,11 @@ else
     -e VPN_PANEL_LISTEN=0.0.0.0:9000 \
     -e "VPN_REMOTE_URL=http://host.docker.internal:${LOCAL_TUNNEL_PORT}" \
     -e "VPN_REMOTE_TOKEN=$VPN_PANEL_TOKEN" \
+    -e "PANEL_IMAGE=$PANEL_IMAGE" \
+    -e "COLLECTOR_IMAGE=$COLLECTOR_IMAGE" \
+    -e "LOCAL_DOCKER_PLATFORM=$LOCAL_DOCKER_PLATFORM" \
+    -e "LOCAL_CONTAINER_NAME=$LOCAL_CONTAINER_NAME" \
+    -e "REMOTE_CONTAINER_NAME=$REMOTE_CONTAINER_NAME" \
     "$LOCAL_IMAGE_TO_RUN" >/dev/null
 fi
 
@@ -431,4 +476,5 @@ echo "Profile: $PROFILE_NAME"
 CLI_SCRIPT
 
   chmod 700 "$CLI_PATH"
+  ln -sf "$CLI_PATH" "$AP_CLI_PATH"
 }

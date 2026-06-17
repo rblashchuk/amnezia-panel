@@ -56,14 +56,20 @@ install_local_panel() {
   chmod 755 "$DATA_DIR"
 
   local_run_args=()
+  local_docker_socket_args=()
   if [ -n "$LOCAL_DOCKER_PLATFORM" ]; then
     local_run_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
+  fi
+  detect_local_docker_socket
+  if [ -n "${LOCAL_DOCKER_SOCKET:-}" ]; then
+    local_docker_socket_args+=(-v "$LOCAL_DOCKER_SOCKET:/var/run/docker.sock")
   fi
 
   docker rm -f "$LOCAL_CONTAINER_NAME" 2>/dev/null || true
 
   docker run -d \
     "${local_run_args[@]}" \
+    "${local_docker_socket_args[@]}" \
     --name "$LOCAL_CONTAINER_NAME" \
     --restart unless-stopped \
     --label "amnezia.panel.profile=$PROFILE_NAME" \
@@ -73,7 +79,39 @@ install_local_panel() {
     -e VPN_PANEL_LISTEN=0.0.0.0:9000 \
     -e "VPN_REMOTE_URL=http://host.docker.internal:${LOCAL_TUNNEL_PORT}" \
     -e "VPN_REMOTE_TOKEN=$VPN_PANEL_TOKEN" \
+    -e "PANEL_IMAGE=$PANEL_IMAGE" \
+    -e "COLLECTOR_IMAGE=$COLLECTOR_IMAGE" \
+    -e "LOCAL_DOCKER_PLATFORM=$LOCAL_DOCKER_PLATFORM" \
+    -e "LOCAL_CONTAINER_NAME=$LOCAL_CONTAINER_NAME" \
+    -e "REMOTE_CONTAINER_NAME=$REMOTE_CONTAINER_NAME" \
     "$LOCAL_IMAGE_TO_RUN"
+}
+
+detect_local_docker_socket() {
+  LOCAL_DOCKER_SOCKET=""
+
+  case "${DOCKER_HOST:-}" in
+    unix://*)
+      LOCAL_DOCKER_SOCKET="${DOCKER_HOST#unix://}"
+      ;;
+  esac
+
+  if [ -z "$LOCAL_DOCKER_SOCKET" ] && [ -S /var/run/docker.sock ]; then
+    LOCAL_DOCKER_SOCKET="/var/run/docker.sock"
+  fi
+
+  if [ -z "$LOCAL_DOCKER_SOCKET" ] && command -v docker >/dev/null 2>&1; then
+    local docker_host
+    docker_host="$(docker context inspect --format '{{ .Endpoints.docker.Host }}' 2>/dev/null || true)"
+    case "$docker_host" in
+      unix://*) LOCAL_DOCKER_SOCKET="${docker_host#unix://}" ;;
+    esac
+  fi
+
+  if [ -n "$LOCAL_DOCKER_SOCKET" ] && [ ! -S "$LOCAL_DOCKER_SOCKET" ]; then
+    warn "Docker socket not found at $LOCAL_DOCKER_SOCKET; update checks from UI will be unavailable."
+    LOCAL_DOCKER_SOCKET=""
+  fi
 }
 
 verify_local_panel() {

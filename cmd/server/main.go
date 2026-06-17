@@ -66,6 +66,7 @@ func serveRemoteProxy(remoteURL, token string) {
 	mux.HandleFunc("/api/sources", proxy.Sources)
 	mux.HandleFunc("/api/debug", proxy.Debug)
 	mux.HandleFunc("/api/traffic", proxy.Traffic)
+	mux.HandleFunc("/api/update/check", web.UpdateCheck)
 	mux.HandleFunc("/peers", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 	})

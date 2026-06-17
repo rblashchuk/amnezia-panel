@@ -17,6 +17,7 @@ PROFILE_NAME="${PROFILE_NAME:-}"
 PROFILE_PATH="$DATA_ROOT/profile.env"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 CLI_PATH="$BIN_DIR/amnezia-panel"
+AP_CLI_PATH="$BIN_DIR/ap"
 REMOTE_DATA_ROOT="${REMOTE_DATA_ROOT:-/opt/amnezia-panel}"
 REMOTE_DATA_DIR="$REMOTE_DATA_ROOT/data"
 

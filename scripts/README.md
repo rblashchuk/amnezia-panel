@@ -28,7 +28,7 @@ directory. When it runs through a pipe, it downloads the required modules from
 - `installer/remote.sh` - Docker installation on the VPS when needed and VPS
   collector startup with the lightweight collector image.
 - `installer/profile.sh` - local profile persistence and `amnezia-panel`
-  command installation.
+  command / `ap` alias installation.
 - `installer/main.sh` - top-level installer flow that connects all steps.
 
 ## Connection Profiles
@@ -54,6 +54,8 @@ amnezia-panel current
 amnezia-panel use default
 amnezia-panel --profile default
 amnezia-panel --no-update-check
+amnezia-panel update
+ap update
 ```
 
 ## Image Updates
@@ -70,6 +72,11 @@ starts the saved SSH tunnel and local web panel. Use `amnezia-panel
 --no-update-check` to skip this check for a single run. The update check is
 best-effort: if pulling image metadata fails or times out, the command continues
 with the currently installed local image.
+
+The local web panel can also check for updates from the Debug tab when the local
+Docker socket is mounted into the panel container. The UI performs this check on
+open and then roughly once per hour, and shows `ap update` when an update is
+available.
 
 The local panel image is `ghcr.io/rblashchuk/amnezia-panel`. The VPS collector
 image is `ghcr.io/rblashchuk/amnezia-panel-collector`. Before pulling the

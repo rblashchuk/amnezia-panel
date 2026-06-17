@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { DebugInfo, Peer, Source, TrafficRequest, TrafficResponse } from './types'
+import type { DebugInfo, Peer, Source, TrafficRequest, TrafficResponse, UpdateCheckResponse } from './types'
 
 export function getSources() {
   return api.get<Source[]>('/api/sources')
@@ -28,4 +28,8 @@ export function getTrafficTotal(sourceID: string, request: TrafficRequest) {
 
 export function getDebugInfo() {
   return api.get<DebugInfo>('/api/debug')
+}
+
+export function checkUpdates() {
+  return api.post<UpdateCheckResponse>('/api/update/check')
 }

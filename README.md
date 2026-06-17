@@ -24,9 +24,9 @@ The installer asks for VPS SSH connection settings, installs the collector on
 the VPS, starts an SSH tunnel, and runs the web panel locally at
 `http://127.0.0.1:9000`.
 
-After installation, the `amnezia-panel` command is installed to
-`~/.local/bin`. Running it later starts the saved SSH tunnel and local web panel
-again.
+After installation, the `amnezia-panel` command and the shorter `ap` alias are
+installed to `~/.local/bin`. Running either command later starts the saved SSH
+tunnel and local web panel again.
 
 Connection settings are saved as named local profiles. The default profile is
 used automatically, and additional commands are available:
@@ -37,10 +37,14 @@ amnezia-panel current
 amnezia-panel use default
 amnezia-panel --profile default
 amnezia-panel --no-update-check
+ap update
 ```
 
 On startup, `amnezia-panel` checks whether a newer Docker image is available and
 asks before updating the local panel and VPS collector.
+
+The Debug tab can also check for updates. When a newer image is available, it
+shows the latest image information and the terminal command to run.
 
 The VPS installation step needs root privileges to install/start Docker, create
 `/opt/amnezia-panel`, and run the collector container. If the SSH user is not

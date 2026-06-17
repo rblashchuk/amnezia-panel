@@ -75,3 +75,23 @@ export type DebugInfo = {
     image: string
   }>
 }
+
+export type UpdateImageState = {
+  container: string
+  image: string
+  current_id: string
+  latest_id: string
+  available: boolean
+  error?: string
+}
+
+export type UpdateCheckResponse = {
+  checked_at: string
+  available: boolean
+  can_check: boolean
+  message: string
+  command: string
+  local_panel: UpdateImageState
+  collector: UpdateImageState
+  requires_command: boolean
+}

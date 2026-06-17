@@ -24,6 +24,21 @@ type Container struct {
 	Status string   `json:"Status"`
 }
 
+type ContainerInspect struct {
+	ID         string `json:"Id"`
+	Image      string `json:"Image"`
+	Config     Config `json:"Config"`
+	HostConfig any    `json:"HostConfig"`
+}
+
+type Config struct {
+	Image string `json:"Image"`
+}
+
+type ImageInspect struct {
+	ID string `json:"Id"`
+}
+
 func New() *Client {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -100,6 +115,29 @@ func (c *Client) Containers(ctx context.Context) ([]Container, error) {
 	return containers, nil
 }
 
+func (c *Client) ContainerInspect(ctx context.Context, name string) (ContainerInspect, error) {
+	var result ContainerInspect
+	err := c.getJSON(ctx, "/containers/"+url.PathEscape(name)+"/json", &result)
+	return result, err
+}
+
+func (c *Client) ImageInspect(ctx context.Context, image string) (ImageInspect, error) {
+	var result ImageInspect
+	err := c.getJSON(ctx, "/images/"+url.PathEscape(image)+"/json", &result)
+	return result, err
+}
+
+func (c *Client) ImagePull(ctx context.Context, image, platform string) error {
+	params := url.Values{}
+	params.Set("fromImage", image)
+	if platform != "" {
+		params.Set("platform", platform)
+	}
+	endpoint := "/images/create?" + params.Encode()
+	_, err := c.postRaw(ctx, endpoint, nil)
+	return err
+}
+
 func (c *Client) postJSON(ctx context.Context, endpoint string, body any, target any) error {
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -153,16 +191,22 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, target any) error
 }
 
 func (c *Client) postRaw(ctx context.Context, endpoint string, body any) ([]byte, error) {
-	data, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		reader = bytes.NewReader(data)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://docker"+endpoint, bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://docker"+endpoint, reader)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {

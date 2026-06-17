@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -17,8 +17,8 @@ import {
   TerminalSquare,
   Upload,
 } from 'lucide-react'
-import { getDebugInfo, getPeers, getSources, getTraffic, getTrafficTotal } from '../api/peers'
-import type { DebugInfo, Peer, Source, TrafficRequest, TrafficRange } from '../api/types'
+import { checkUpdates, getDebugInfo, getPeers, getSources, getTraffic, getTrafficTotal } from '../api/peers'
+import type { DebugInfo, Peer, Source, TrafficRequest, TrafficRange, UpdateCheckResponse } from '../api/types'
 import { formatBytes, formatRelativeHandshake, getPeerStatus, shortKey } from '../lib/format'
 import { TrafficChart } from '../features/traffic/TrafficChart'
 
@@ -107,9 +107,25 @@ export function App() {
     refetchInterval: 15_000,
   })
 
+  const updateQuery = useQuery({
+    queryKey: ['update-check'],
+    queryFn: checkUpdates,
+    refetchInterval: 60 * 60 * 1000,
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (tab === 'debug') {
+      updateQuery.refetch()
+    }
+  }, [tab])
+
   const onlineCount = peers.filter((peer) => getPeerStatus(peer.last_handshake) === 'online').length
   const rangeRx = totalTrafficQuery.data?.rx_bytes
   const rangeTx = totalTrafficQuery.data?.tx_bytes
+  const hasUpdate = Boolean(updateQuery.data?.available)
 
   return (
     <div className="shell">
@@ -125,6 +141,7 @@ export function App() {
             </button>
             <button className={tab === 'debug' ? 'active' : ''} type="button" onClick={() => setTab('debug')}>
               Debug
+              {hasUpdate && <span className="tab-badge" aria-label="Update available" />}
             </button>
           </div>
           <button
@@ -273,7 +290,15 @@ export function App() {
             </section>
           </>
         ) : (
-          <DebugPanel data={debugQuery.data} isLoading={debugQuery.isLoading} error={debugQuery.error} />
+          <DebugPanel
+            data={debugQuery.data}
+            isLoading={debugQuery.isLoading}
+            error={debugQuery.error}
+            updateData={updateQuery.data}
+            isUpdateLoading={updateQuery.isFetching}
+            updateError={updateQuery.error}
+            onUpdateCheck={() => updateQuery.refetch()}
+          />
         )}
       </main>
     </div>
@@ -458,7 +483,23 @@ function peerDisplayName(peer: Peer) {
   return peer.name || shortKey(peer.public_key)
 }
 
-function DebugPanel({ data, isLoading, error }: { data?: DebugInfo; isLoading: boolean; error: Error | null }) {
+function DebugPanel({
+  data,
+  isLoading,
+  error,
+  updateData,
+  isUpdateLoading,
+  updateError,
+  onUpdateCheck,
+}: {
+  data?: DebugInfo
+  isLoading: boolean
+  error: Error | null
+  updateData?: UpdateCheckResponse
+  isUpdateLoading: boolean
+  updateError: Error | null
+  onUpdateCheck: () => void
+}) {
   if (isLoading) {
     return <StateMessage title="Loading debug info" detail="Collecting host and container diagnostics" />
   }
@@ -477,6 +518,10 @@ function DebugPanel({ data, isLoading, error }: { data?: DebugInfo; isLoading: b
 
   return (
     <section className="debug-grid">
+      <DebugCard title="Updates" icon={<RefreshCcw size={18} />} wide>
+        <UpdateStatus data={updateData} isLoading={isUpdateLoading} error={updateError} onCheck={onUpdateCheck} />
+      </DebugCard>
+
       <DebugCard title="System" icon={<TerminalSquare size={18} />}>
         <InfoRow label="Hostname" value={data.system.hostname} />
         <InfoRow label="Kernel" value={data.system.kernel || 'Unavailable'} />
@@ -535,6 +580,58 @@ function DebugPanel({ data, isLoading, error }: { data?: DebugInfo; isLoading: b
       </DebugCard>
     </section>
   )
+}
+
+function UpdateStatus({
+  data,
+  isLoading,
+  error,
+  onCheck,
+}: {
+  data?: UpdateCheckResponse
+  isLoading: boolean
+  error: Error | null
+  onCheck: () => void
+}) {
+  const shouldShowCommand = Boolean(data?.available || data?.requires_command || !data?.can_check)
+  const latestID = data?.local_panel.latest_id ? shortImageID(data.local_panel.latest_id) : ''
+  const currentID = data?.local_panel.current_id ? shortImageID(data.local_panel.current_id) : ''
+
+  return (
+    <div className="update-status">
+      <div className="update-status-head">
+        <div>
+          <div className={`update-badge ${data?.available ? 'available' : data && data.can_check ? 'ok' : 'muted'}`}>
+            {isLoading ? 'Checking' : data?.available ? 'Update available' : data?.can_check ? 'Up to date' : 'Manual check'}
+          </div>
+          <p>{error ? error.message : data?.message || 'Checking for the latest panel image about once per hour.'}</p>
+        </div>
+        <button className="apply-range" type="button" onClick={onCheck} disabled={isLoading}>
+          <RefreshCcw size={15} />
+          Check for updates
+        </button>
+      </div>
+
+      {data ? (
+        <div className="update-details">
+          <InfoRow label="Image" value={data.local_panel.image} />
+          {latestID && <InfoRow label="Latest" value={latestID} />}
+          {currentID && <InfoRow label="Current" value={currentID} />}
+          <InfoRow label="Checked" value={new Date(data.checked_at).toLocaleString()} />
+        </div>
+      ) : null}
+
+      {shouldShowCommand && data?.command ? (
+        <pre className="command-block">
+          <code>{data.command}</code>
+        </pre>
+      ) : null}
+    </div>
+  )
+}
+
+function shortImageID(value: string) {
+  return value.replace(/^sha256:/, '').slice(0, 12)
 }
 
 function DebugCard({ title, icon, wide, children }: { title: string; icon: ReactNode; wide?: boolean; children: ReactNode }) {
