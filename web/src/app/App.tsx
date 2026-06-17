@@ -45,8 +45,10 @@ export function App() {
   const [selectedSourceID, setSelectedSourceID] = useState('')
   const [selectedKey, setSelectedKey] = useState('')
   const [rangeSelection, setRangeSelection] = useState<RangeSelection>({ type: 'preset', value: '6h', label: '6H' })
+  const [lastPresetRange, setLastPresetRange] = useState<Extract<RangeSelection, { type: 'preset' }>>({ type: 'preset', value: '6h', label: '6H' })
   const [rangeEditor, setRangeEditor] = useState<RangeEditor>('closed')
   const [customDraft, setCustomDraft] = useState(() => defaultCustomRange())
+  const customSelection = useMemo(() => parseCustomRange(customDraft), [customDraft])
 
   const sourcesQuery = useQuery({
     queryKey: ['sources'],
@@ -167,8 +169,10 @@ export function App() {
                         type="button"
                         className={rangeSelection.type === 'preset' && item.value === rangeSelection.value ? 'active' : ''}
                         onClick={() => {
+                          const preset = { type: 'preset' as const, value: item.value, label: item.label }
                           setRangeEditor('closed')
-                          setRangeSelection({ type: 'preset', value: item.value, label: item.label })
+                          setLastPresetRange(preset)
+                          setRangeSelection(preset)
                         }}
                       >
                         {item.label}
@@ -194,33 +198,34 @@ export function App() {
                     className="custom-range"
                     onSubmit={(event) => {
                       event.preventDefault()
-                      if (!isValidCustomRange(customDraft)) return
-                      setRangeSelection(customDraftToSelection(customDraft))
+                      if (!customSelection) return
+                      setRangeSelection(customSelection)
                       setRangeEditor('closed')
                     }}
                   >
                     <label>
                       <span>From</span>
                       <input
-                        type="datetime-local"
+                        type="text"
+                        placeholder="-24h or 2026-06-18 10:00"
                         value={customDraft.from}
-                        max={customDraft.to}
                         onChange={(event) => setCustomDraft((current) => ({ ...current, from: event.target.value }))}
                       />
                     </label>
                     <label>
                       <span>To</span>
                       <input
-                        type="datetime-local"
+                        type="text"
+                        placeholder="now, -1h, or 2026-06-18 18:00"
                         value={customDraft.to}
-                        min={customDraft.from}
                         onChange={(event) => setCustomDraft((current) => ({ ...current, to: event.target.value }))}
                       />
                     </label>
-                    <button className="apply-range" type="submit" disabled={!isValidCustomRange(customDraft)}>
+                    <button className="apply-range" type="submit" disabled={!customSelection}>
                       <CalendarClock size={15} />
                       Apply
                     </button>
+                    <div className="custom-range-help">Supports now, -30m, -12h, -5d, -2w, and absolute date/time.</div>
                   </form>
                 ) : null}
 
@@ -239,12 +244,17 @@ export function App() {
                   isLoading={trafficQuery.isLoading}
                   error={trafficQuery.error}
                   onRangeSelect={(from, to) => {
+                    setRangeEditor('closed')
                     setRangeSelection({
                       type: 'chart',
                       from,
                       to,
                       label: formatRangeLabel(from, to),
                     })
+                  }}
+                  onSelectionClear={() => {
+                    setRangeEditor('closed')
+                    setRangeSelection(lastPresetRange)
                   }}
                 />
               </section>
@@ -275,22 +285,22 @@ function formatRangeLabel(from: string, to: string) {
 }
 
 function defaultCustomRange() {
-  const to = new Date()
-  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
   return {
-    from: formatDateTimeLocal(from),
-    to: formatDateTimeLocal(to),
+    from: '-24h',
+    to: 'now',
   }
 }
 
-function formatDateTimeLocal(date: Date) {
-  const offsetMs = date.getTimezoneOffset() * 60 * 1000
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
-}
+function parseCustomRange(range: { from: string; to: string }): RangeSelection | null {
+  const now = new Date()
+  const fromDate = parseRangeInput(range.from, now)
+  const toDate = parseRangeInput(range.to, now)
+  if (!fromDate || !toDate || fromDate.getTime() >= toDate.getTime()) {
+    return null
+  }
 
-function customDraftToSelection(range: { from: string; to: string }): RangeSelection {
-  const from = new Date(range.from).toISOString()
-  const to = new Date(range.to).toISOString()
+  const from = fromDate.toISOString()
+  const to = toDate.toISOString()
   return {
     type: 'custom',
     from,
@@ -299,9 +309,29 @@ function customDraftToSelection(range: { from: string; to: string }): RangeSelec
   }
 }
 
-function isValidCustomRange(range: { from: string; to: string }) {
-  if (!range.from || !range.to) return false
-  return new Date(range.from).getTime() < new Date(range.to).getTime()
+function parseRangeInput(value: string, now: Date) {
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+  if (trimmed.toLowerCase() === 'now') return now
+
+  const relative = trimmed.match(/^(-|\+)?(\d+)(m|h|d|w)$/i)
+  if (relative) {
+    const sign = relative[1] === '+' ? 1 : -1
+    const amount = Number(relative[2])
+    const unit = relative[3].toLowerCase()
+    const multipliers: Record<string, number> = {
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+      w: 7 * 24 * 60 * 60 * 1000,
+    }
+    return new Date(now.getTime() + sign * amount * multipliers[unit])
+  }
+
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(trimmed) ? trimmed.replace(' ', 'T') : trimmed
+  const parsed = new Date(normalized)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
 }
 
 function SourceSwitcher({

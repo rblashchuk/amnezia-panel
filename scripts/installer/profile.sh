@@ -213,6 +213,19 @@ ask_yes_no() {
   esac
 }
 
+run_with_timeout() {
+  local seconds="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$seconds" "$@"
+  elif command -v perl >/dev/null 2>&1; then
+    perl -e 'alarm shift; exec @ARGV' "$seconds" "$@"
+  else
+    "$@"
+  fi
+}
+
 update_remote_collector() {
   local remote_env=(
     "REPO_IMAGE=$REPO_IMAGE"
@@ -348,16 +361,22 @@ fi
 
 if [ "$CHECK_UPDATES" = "yes" ]; then
   echo "Checking for Amnezia Panel updates..."
-  docker pull "${local_pull_args[@]}" "$REPO_IMAGE" >/dev/null
-  latest_image="$(docker image inspect -f '{{.Id}}' "$REPO_IMAGE")"
+  if run_with_timeout 20 docker pull "${local_pull_args[@]}" "$REPO_IMAGE"; then
+    latest_image="$(docker image inspect -f '{{.Id}}' "$REPO_IMAGE")"
 
-  if [ -n "$current_container_image" ] && [ "$current_container_image" != "$latest_image" ]; then
-    if ask_yes_no "A newer Amnezia Panel image is available. Update local panel and VPS collector?" "y"; then
-      update_remote_collector
-      docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
-      LOCAL_IMAGE_TO_RUN="$REPO_IMAGE"
-    else
-      echo "Keeping the currently installed image."
+    if [ -n "$current_container_image" ] && [ "$current_container_image" != "$latest_image" ]; then
+      if ask_yes_no "A newer Amnezia Panel image is available. Update local panel and VPS collector?" "y"; then
+        update_remote_collector
+        docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
+        LOCAL_IMAGE_TO_RUN="$REPO_IMAGE"
+      else
+        echo "Keeping the currently installed image."
+        LOCAL_IMAGE_TO_RUN="$current_container_image"
+      fi
+    fi
+  else
+    echo "WARNING: update check timed out or failed; starting the installed panel."
+    if [ -n "$current_container_image" ]; then
       LOCAL_IMAGE_TO_RUN="$current_container_image"
     fi
   fi

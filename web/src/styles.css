@@ -376,6 +376,12 @@ h1 {
   border-bottom: 1px solid var(--border);
 }
 
+.custom-range-help {
+  grid-column: 1 / -1;
+  color: var(--soft);
+  font-size: 11px;
+}
+
 .custom-range label {
   display: flex;
   flex-direction: column;

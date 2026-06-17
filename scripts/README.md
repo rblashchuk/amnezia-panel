@@ -67,7 +67,9 @@ local image and does not update the VPS collector image.
 
 The installed `amnezia-panel` command performs the same update check before it
 starts the saved SSH tunnel and local web panel. Use `amnezia-panel
---no-update-check` to skip this check for a single run.
+--no-update-check` to skip this check for a single run. The update check is
+best-effort: if pulling image metadata fails or times out, the command continues
+with the currently installed local image.
 
 The local panel image is `ghcr.io/rblashchuk/amnezia-panel`. The VPS collector
 image is `ghcr.io/rblashchuk/amnezia-panel-collector`. Before pulling the

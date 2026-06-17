@@ -14,18 +14,24 @@ type Props = {
   isLoading: boolean
   error: Error | null
   onRangeSelect: (from: string, to: string) => void
+  onSelectionClear: () => void
 }
 
-export function TrafficChart({ data, isLoading, error, onRangeSelect }: Props) {
+export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectionClear }: Props) {
 	const chartRef = useRef<HTMLDivElement | null>(null)
 	const instanceRef = useRef<EChartsType | null>(null)
   const onRangeSelectRef = useRef(onRangeSelect)
+  const onSelectionClearRef = useRef(onSelectionClear)
 
   const points = useMemo(() => data?.points ?? [], [data?.points])
 
   useEffect(() => {
     onRangeSelectRef.current = onRangeSelect
   }, [onRangeSelect])
+
+  useEffect(() => {
+    onSelectionClearRef.current = onSelectionClear
+  }, [onSelectionClear])
 
   const option = useMemo(() => {
     const rxData = points.map((point) => [new Date(point.collected_at).getTime(), point.rx_bytes])
@@ -123,6 +129,10 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect }: Props) {
 
     const resize = () => instanceRef.current?.resize()
     const handleBrushEnd = (event: unknown) => {
+      if (isBrushClear(event)) {
+        onSelectionClearRef.current()
+        return
+      }
       const range = extractBrushRange(event)
       if (!range) return
       onRangeSelectRef.current(new Date(range.from).toISOString(), new Date(range.to).toISOString())
@@ -164,6 +174,11 @@ type BrushEndEvent = {
   areas?: Array<{
     coordRange?: [number | string, number | string]
   }>
+}
+
+function isBrushClear(event: unknown) {
+  const payload = event as BrushEndEvent
+  return Array.isArray(payload.areas) && payload.areas.length === 0
 }
 
 function extractBrushRange(event: unknown) {
