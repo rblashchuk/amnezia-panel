@@ -61,16 +61,28 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
         },
         feature: {
           brush: {
-            type: ['lineX', 'clear'],
+            type: ['lineX'],
             title: {
               lineX: 'Select range',
-              clear: 'Clear selection',
+            },
+          },
+          clearRange: {
+            show: true,
+            title: 'Clear selection',
+            icon: 'path://M5 5 L19 19 M19 5 L5 19',
+            onclick: () => {
+              lastAppliedRangeRef.current = ''
+              instanceRef.current?.dispatchAction({
+                type: 'brush',
+                areas: [],
+              })
+              onSelectionClearRef.current()
             },
           },
         },
       },
       brush: {
-        toolbox: ['lineX', 'clear'],
+        toolbox: ['lineX'],
         xAxisIndex: 0,
         brushMode: 'single',
         transformable: false,
@@ -130,12 +142,6 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
 
     const resize = () => instanceRef.current?.resize()
     const handleBrushEvent = (event: unknown) => {
-      if (isBrushClear(event)) {
-        lastAppliedRangeRef.current = ''
-        onSelectionClearRef.current()
-        return
-      }
-
       const range = extractBrushRange(event)
       if (!range) return
 
@@ -152,21 +158,12 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
       handleBrushEvent(event)
     }
 
-    const handleBrush = (event: unknown) => {
-      if (isBrushClear(event)) {
-        lastAppliedRangeRef.current = ''
-        onSelectionClearRef.current()
-      }
-    }
-
-    instanceRef.current.on('brush', handleBrush)
     instanceRef.current.on('brushEnd', handleBrushEnd)
     instanceRef.current.on('brushSelected', handleBrushSelected)
     window.addEventListener('resize', resize)
 
     return () => {
       window.removeEventListener('resize', resize)
-      instanceRef.current?.off('brush', handleBrush)
       instanceRef.current?.off('brushEnd', handleBrushEnd)
       instanceRef.current?.off('brushSelected', handleBrushSelected)
       instanceRef.current?.dispose()
@@ -207,11 +204,6 @@ type BrushEndEvent = {
 }
 
 type BrushCoordRange = [number | string, number | string] | [[number | string, number | string]]
-
-function isBrushClear(event: unknown) {
-  const areas = brushAreas(event)
-  return Array.isArray(areas) && areas.length === 0
-}
 
 function extractBrushRange(event: unknown) {
   const coordRange = normalizeCoordRange(brushAreas(event)?.find((area) => area.coordRange)?.coordRange)
