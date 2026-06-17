@@ -22,6 +22,7 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
 	const instanceRef = useRef<EChartsType | null>(null)
   const onRangeSelectRef = useRef(onRangeSelect)
   const onSelectionClearRef = useRef(onSelectionClear)
+  const lastAppliedRangeRef = useRef('')
 
   const points = useMemo(() => data?.points ?? [], [data?.points])
 
@@ -128,23 +129,44 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
     instanceRef.current = echarts.init(chartRef.current, undefined, { renderer: 'canvas' })
 
     const resize = () => instanceRef.current?.resize()
-    const handleBrushEnd = (event: unknown) => {
+    const handleBrushEvent = (event: unknown) => {
+      if (isBrushClear(event)) {
+        lastAppliedRangeRef.current = ''
+        onSelectionClearRef.current()
+        return
+      }
+
       const range = extractBrushRange(event)
       if (!range) return
+
+      const rangeKey = `${range.from}:${range.to}`
+      if (rangeKey === lastAppliedRangeRef.current) return
+
+      lastAppliedRangeRef.current = rangeKey
       onRangeSelectRef.current(new Date(range.from).toISOString(), new Date(range.to).toISOString())
     }
+    const handleBrushEnd = (event: unknown) => {
+      handleBrushEvent(event)
+    }
     const handleBrushSelected = (event: unknown) => {
+      handleBrushEvent(event)
+    }
+
+    const handleBrush = (event: unknown) => {
       if (isBrushClear(event)) {
+        lastAppliedRangeRef.current = ''
         onSelectionClearRef.current()
       }
     }
 
+    instanceRef.current.on('brush', handleBrush)
     instanceRef.current.on('brushEnd', handleBrushEnd)
     instanceRef.current.on('brushSelected', handleBrushSelected)
     window.addEventListener('resize', resize)
 
     return () => {
       window.removeEventListener('resize', resize)
+      instanceRef.current?.off('brush', handleBrush)
       instanceRef.current?.off('brushEnd', handleBrushEnd)
       instanceRef.current?.off('brushSelected', handleBrushSelected)
       instanceRef.current?.dispose()
@@ -175,14 +197,16 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
 
 type BrushEndEvent = {
   areas?: Array<{
-    coordRange?: [number | string, number | string]
+    coordRange?: BrushCoordRange
   }>
   batch?: Array<{
     areas?: Array<{
-      coordRange?: [number | string, number | string]
+      coordRange?: BrushCoordRange
     }>
   }>
 }
+
+type BrushCoordRange = [number | string, number | string] | [[number | string, number | string]]
 
 function isBrushClear(event: unknown) {
   const areas = brushAreas(event)
@@ -190,11 +214,11 @@ function isBrushClear(event: unknown) {
 }
 
 function extractBrushRange(event: unknown) {
-  const coordRange = brushAreas(event)?.find((area) => area.coordRange)?.coordRange
+  const coordRange = normalizeCoordRange(brushAreas(event)?.find((area) => area.coordRange)?.coordRange)
   if (!coordRange) return null
 
-  const from = Number(coordRange[0])
-  const to = Number(coordRange[1])
+  const from = parseCoordValue(coordRange[0])
+  const to = parseCoordValue(coordRange[1])
   if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) {
     return null
   }
@@ -205,6 +229,26 @@ function extractBrushRange(event: unknown) {
 function brushAreas(event: unknown) {
   const payload = event as BrushEndEvent
   return payload.areas ?? payload.batch?.[0]?.areas
+}
+
+function normalizeCoordRange(value?: BrushCoordRange) {
+  if (!value) return null
+  if (Array.isArray(value[0])) {
+    return value[0]
+  }
+  return value as [number | string, number | string]
+}
+
+function parseCoordValue(value: number | string) {
+  if (typeof value === 'number') return value
+
+  const numeric = Number(value)
+  if (Number.isFinite(numeric)) return numeric
+
+  const timestamp = Date.parse(value)
+  if (Number.isFinite(timestamp)) return timestamp
+
+  return Number.NaN
 }
 
 function getStateMessage(isLoading: boolean, error: Error | null, pointCount: number) {
