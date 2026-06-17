@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { DebugInfo, Peer, Source, TrafficRange, TrafficResponse } from './types'
+import type { DebugInfo, Peer, Source, TrafficRequest, TrafficResponse } from './types'
 
 export function getSources() {
   return api.get<Source[]>('/api/sources')
@@ -10,12 +10,14 @@ export function getPeers(sourceID: string) {
   return api.get<Peer[]>(`/api/peers?${params}`)
 }
 
-export function getTraffic(sourceID: string, publicKey: string, range: TrafficRange) {
+export function getTraffic(sourceID: string, publicKey: string, request: TrafficRequest) {
   const params = new URLSearchParams({
     source_id: sourceID,
     public_key: publicKey,
-    range,
   })
+  if (request.range) params.set('range', request.range)
+  if (request.from) params.set('from', request.from)
+  if (request.to) params.set('to', request.to)
 
   return api.get<TrafficResponse>(`/api/traffic?${params}`)
 }

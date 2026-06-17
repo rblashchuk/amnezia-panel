@@ -31,6 +31,25 @@ directory. When it runs through a pipe, it downloads the required modules from
   command installation.
 - `installer/main.sh` - top-level installer flow that connects all steps.
 
+## Connection Profiles
+
+The installer stores connection settings as named local profiles under
+`~/.amnezia-panel/profiles`. The currently selected profile name is stored in
+`~/.amnezia-panel/current-profile`.
+
+For compatibility with earlier installations, the installer also writes
+`~/.amnezia-panel/profile.env`, and the `amnezia-panel` command can still use it
+as the default profile fallback.
+
+The installed command supports:
+
+```bash
+amnezia-panel profiles
+amnezia-panel current
+amnezia-panel use default
+amnezia-panel --profile default
+```
+
 ## Image Updates
 
 If the local `amnezia-panel` container already exists, the installer pulls the

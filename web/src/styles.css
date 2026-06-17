@@ -345,6 +345,28 @@ h1 {
   grid-template-columns: repeat(4, minmax(46px, 1fr));
 }
 
+.range-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.range-status span {
+  text-transform: uppercase;
+}
+
+.range-status strong {
+  color: var(--text);
+  font-weight: 650;
+  text-align: right;
+}
+
 .metric-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

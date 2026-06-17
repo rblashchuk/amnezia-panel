@@ -17,7 +17,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { getDebugInfo, getPeers, getSources, getTraffic } from '../api/peers'
-import type { DebugInfo, Peer, Source, TrafficRange } from '../api/types'
+import type { DebugInfo, Peer, Source, TrafficRequest, TrafficRange } from '../api/types'
 import { formatBytes, formatRelativeHandshake, getPeerStatus, shortKey } from '../lib/format'
 import { TrafficChart } from '../features/traffic/TrafficChart'
 
@@ -32,12 +32,15 @@ const emptyPeers: Peer[] = []
 const emptySources: Source[] = []
 
 type Tab = 'traffic' | 'debug'
+type RangeSelection =
+  | { type: 'preset'; value: TrafficRange; label: string }
+  | { type: 'chart'; from: string; to: string; label: string }
 
 export function App() {
   const [tab, setTab] = useState<Tab>('traffic')
   const [selectedSourceID, setSelectedSourceID] = useState('')
   const [selectedKey, setSelectedKey] = useState('')
-  const [range, setRange] = useState<TrafficRange>('6h')
+  const [rangeSelection, setRangeSelection] = useState<RangeSelection>({ type: 'preset', value: '6h', label: '6H' })
 
   const sourcesQuery = useQuery({
     queryKey: ['sources'],
@@ -64,9 +67,20 @@ export function App() {
     [peers, effectiveSelectedKey],
   )
 
+  const trafficRequest = useMemo<TrafficRequest>(() => {
+    if (rangeSelection.type === 'preset') {
+      return { range: rangeSelection.value }
+    }
+
+    return {
+      from: rangeSelection.from,
+      to: rangeSelection.to,
+    }
+  }, [rangeSelection])
+
   const trafficQuery = useQuery({
-    queryKey: ['traffic', effectiveSourceID, effectiveSelectedKey, range],
-    queryFn: () => getTraffic(effectiveSourceID, effectiveSelectedKey, range),
+    queryKey: ['traffic', effectiveSourceID, effectiveSelectedKey, trafficRequest],
+    queryFn: () => getTraffic(effectiveSourceID, effectiveSelectedKey, trafficRequest),
     enabled: Boolean(effectiveSourceID && effectiveSelectedKey),
     refetchInterval: 30_000,
   })
@@ -145,13 +159,18 @@ export function App() {
                       <button
                         key={item.value}
                         type="button"
-                        className={item.value === range ? 'active' : ''}
-                        onClick={() => setRange(item.value)}
+                        className={rangeSelection.type === 'preset' && item.value === rangeSelection.value ? 'active' : ''}
+                        onClick={() => setRangeSelection({ type: 'preset', value: item.value, label: item.label })}
                       >
                         {item.label}
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="range-status">
+                  <span>{rangeSelection.type === 'chart' ? 'Chart selection' : 'Preset range'}</span>
+                  <strong>{rangeSelection.label}</strong>
                 </div>
 
                 <div className="metric-row">
@@ -168,6 +187,14 @@ export function App() {
                   data={trafficQuery.data}
                   isLoading={trafficQuery.isLoading}
                   error={trafficQuery.error}
+                  onRangeSelect={(from, to) => {
+                    setRangeSelection({
+                      type: 'chart',
+                      from,
+                      to,
+                      label: formatRangeLabel(from, to),
+                    })
+                  }}
                 />
               </section>
             </section>
@@ -183,6 +210,16 @@ export function App() {
 function refreshAll(refetchPeers: () => unknown, refetchDebug: () => unknown) {
   refetchPeers()
   refetchDebug()
+}
+
+function formatRangeLabel(from: string, to: string) {
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  return `${formatter.format(new Date(from))} - ${formatter.format(new Date(to))}`
 }
 
 function SourceSwitcher({

@@ -33,7 +33,13 @@ export type TrafficResponse = {
   points: TrafficPoint[]
 }
 
-export type TrafficRange = '6h' | '24h' | '168h' | '720h'
+export type TrafficRange = string
+
+export type TrafficRequest = {
+  range?: TrafficRange
+  from?: string
+  to?: string
+}
 
 export type DebugInfo = {
   generated_at: string

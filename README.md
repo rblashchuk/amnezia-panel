@@ -25,6 +25,16 @@ After installation, the `amnezia-panel` command is installed to
 `~/.local/bin`. Running it later starts the saved SSH tunnel and local web panel
 again.
 
+Connection settings are saved as named local profiles. The default profile is
+used automatically, and additional commands are available:
+
+```bash
+amnezia-panel profiles
+amnezia-panel current
+amnezia-panel use default
+amnezia-panel --profile default
+```
+
 The VPS installation step needs root privileges to install/start Docker, create
 `/opt/amnezia-panel`, and run the collector container. If the SSH user is not
 `root`, the remote host may ask for the user's sudo password. The installer does
@@ -62,4 +72,4 @@ curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scr
 
 - Add full client create, revoke, rename, and export flows.
 - Expand monitoring support across more AmneziaVPN protocols.
-- Add support for multiple saved connection profiles.
+- Improve saved profile management in the web UI.
