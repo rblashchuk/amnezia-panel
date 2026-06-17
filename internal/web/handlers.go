@@ -84,11 +84,6 @@ func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	publicKey := r.URL.Query().Get("public_key")
-	if publicKey == "" {
-		http.Error(w, "public_key is required", http.StatusBadRequest)
-		return
-	}
-
 	now := time.Now()
 	from, to, rangeDuration, err := parseTrafficWindow(r.URL.Query(), now)
 	if err != nil {
@@ -102,7 +97,12 @@ func (h *Handler) Traffic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	samples, err := h.DB.TrafficSamples(source.Info().ID, publicKey, from)
+	var samples []model.TrafficSample
+	if publicKey == "" {
+		samples, err = h.DB.TrafficSamplesForSource(source.Info().ID, from)
+	} else {
+		samples, err = h.DB.TrafficSamples(source.Info().ID, publicKey, from)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

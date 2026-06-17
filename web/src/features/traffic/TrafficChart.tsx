@@ -129,21 +129,24 @@ export function TrafficChart({ data, isLoading, error, onRangeSelect, onSelectio
 
     const resize = () => instanceRef.current?.resize()
     const handleBrushEnd = (event: unknown) => {
-      if (isBrushClear(event)) {
-        onSelectionClearRef.current()
-        return
-      }
       const range = extractBrushRange(event)
       if (!range) return
       onRangeSelectRef.current(new Date(range.from).toISOString(), new Date(range.to).toISOString())
     }
+    const handleBrushSelected = (event: unknown) => {
+      if (isBrushClear(event)) {
+        onSelectionClearRef.current()
+      }
+    }
 
     instanceRef.current.on('brushEnd', handleBrushEnd)
+    instanceRef.current.on('brushSelected', handleBrushSelected)
     window.addEventListener('resize', resize)
 
     return () => {
       window.removeEventListener('resize', resize)
       instanceRef.current?.off('brushEnd', handleBrushEnd)
+      instanceRef.current?.off('brushSelected', handleBrushSelected)
       instanceRef.current?.dispose()
       instanceRef.current = null
     }
@@ -174,16 +177,20 @@ type BrushEndEvent = {
   areas?: Array<{
     coordRange?: [number | string, number | string]
   }>
+  batch?: Array<{
+    areas?: Array<{
+      coordRange?: [number | string, number | string]
+    }>
+  }>
 }
 
 function isBrushClear(event: unknown) {
-  const payload = event as BrushEndEvent
-  return Array.isArray(payload.areas) && payload.areas.length === 0
+  const areas = brushAreas(event)
+  return Array.isArray(areas) && areas.length === 0
 }
 
 function extractBrushRange(event: unknown) {
-  const payload = event as BrushEndEvent
-  const coordRange = payload.areas?.find((area) => area.coordRange)?.coordRange
+  const coordRange = brushAreas(event)?.find((area) => area.coordRange)?.coordRange
   if (!coordRange) return null
 
   const from = Number(coordRange[0])
@@ -193,6 +200,11 @@ function extractBrushRange(event: unknown) {
   }
 
   return { from, to }
+}
+
+function brushAreas(event: unknown) {
+  const payload = event as BrushEndEvent
+  return payload.areas ?? payload.batch?.[0]?.areas
 }
 
 function getStateMessage(isLoading: boolean, error: Error | null, pointCount: number) {

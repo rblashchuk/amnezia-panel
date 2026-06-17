@@ -17,7 +17,7 @@ import {
   TerminalSquare,
   Upload,
 } from 'lucide-react'
-import { getDebugInfo, getPeers, getSources, getTraffic } from '../api/peers'
+import { getDebugInfo, getPeers, getSources, getTraffic, getTrafficTotal } from '../api/peers'
 import type { DebugInfo, Peer, Source, TrafficRequest, TrafficRange } from '../api/types'
 import { formatBytes, formatRelativeHandshake, getPeerStatus, shortKey } from '../lib/format'
 import { TrafficChart } from '../features/traffic/TrafficChart'
@@ -93,6 +93,13 @@ export function App() {
     refetchInterval: 30_000,
   })
 
+  const totalTrafficQuery = useQuery({
+    queryKey: ['traffic-total', effectiveSourceID, trafficRequest],
+    queryFn: () => getTrafficTotal(effectiveSourceID, trafficRequest),
+    enabled: Boolean(effectiveSourceID),
+    refetchInterval: 30_000,
+  })
+
   const debugQuery = useQuery({
     queryKey: ['debug'],
     queryFn: getDebugInfo,
@@ -101,8 +108,8 @@ export function App() {
   })
 
   const onlineCount = peers.filter((peer) => getPeerStatus(peer.last_handshake) === 'online').length
-  const rangeRx = trafficQuery.data?.rx_bytes
-  const rangeTx = trafficQuery.data?.tx_bytes
+  const rangeRx = totalTrafficQuery.data?.rx_bytes
+  const rangeTx = totalTrafficQuery.data?.tx_bytes
 
   return (
     <div className="shell">
@@ -120,7 +127,12 @@ export function App() {
               Debug
             </button>
           </div>
-          <button className="icon-button" type="button" onClick={() => refreshAll(peersQuery.refetch, trafficQuery.refetch, debugQuery.refetch)} title="Refresh">
+          <button
+            className="icon-button"
+            type="button"
+            onClick={() => refreshAll(peersQuery.refetch, trafficQuery.refetch, totalTrafficQuery.refetch, debugQuery.refetch)}
+            title="Refresh"
+          >
             <RefreshCcw size={18} />
           </button>
         </div>
@@ -143,7 +155,7 @@ export function App() {
             <section className="summary-grid" aria-label="Overview">
               <SummaryCard icon={<Server size={18} />} label="Peers" value={String(peers.length)} meta={`${onlineCount} online`} />
               <SummaryCard icon={<Download size={18} />} label="Total RX" value={formatBytes(rangeRx)} meta={rangeSelection.label} />
-              <SummaryCard icon={<Upload size={18} />} label="Total TX" value={formatBytes(rangeTx)} meta={selectedPeer ? peerDisplayName(selectedPeer) : 'selected client'} />
+              <SummaryCard icon={<Upload size={18} />} label="Total TX" value={formatBytes(rangeTx)} meta={rangeSelection.label} />
               <SummaryCard icon={<Activity size={18} />} label="Collector" value={peersQuery.isError ? 'Error' : 'Active'} meta="3s refresh" />
             </section>
 
@@ -268,9 +280,10 @@ export function App() {
   )
 }
 
-function refreshAll(refetchPeers: () => unknown, refetchTraffic: () => unknown, refetchDebug: () => unknown) {
+function refreshAll(refetchPeers: () => unknown, refetchTraffic: () => unknown, refetchTotalTraffic: () => unknown, refetchDebug: () => unknown) {
   refetchPeers()
   refetchTraffic()
+  refetchTotalTraffic()
   refetchDebug()
 }
 

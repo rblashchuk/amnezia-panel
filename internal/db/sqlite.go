@@ -59,14 +59,30 @@ AND latest.collected_at = ps.collected_at
 }
 
 func (db *DB) TrafficSamples(sourceID, publicKey string, since time.Time) ([]model.TrafficSample, error) {
-	rows, err := db.Query(`
+	return db.trafficSamples(sourceID, publicKey, since)
+}
+
+func (db *DB) TrafficSamplesForSource(sourceID string, since time.Time) ([]model.TrafficSample, error) {
+	return db.trafficSamples(sourceID, "", since)
+}
+
+func (db *DB) trafficSamples(sourceID, publicKey string, since time.Time) ([]model.TrafficSample, error) {
+	query := `
 SELECT source_id, protocol, container, public_key, rx_total, tx_total, rx_delta, tx_delta, collected_at
 FROM peer_samples
 WHERE source_id = ?
-AND public_key = ?
-AND collected_at >= ?
+`
+	args := []any{sourceID}
+	if publicKey != "" {
+		query += "AND public_key = ?\n"
+		args = append(args, publicKey)
+	}
+	query += `AND collected_at >= ?
 ORDER BY collected_at ASC
-`, sourceID, publicKey, since)
+`
+	args = append(args, since)
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
