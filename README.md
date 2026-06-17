@@ -33,7 +33,11 @@ amnezia-panel profiles
 amnezia-panel current
 amnezia-panel use default
 amnezia-panel --profile default
+amnezia-panel --no-update-check
 ```
+
+On startup, `amnezia-panel` checks whether a newer Docker image is available and
+asks before updating the local panel and VPS collector.
 
 The VPS installation step needs root privileges to install/start Docker, create
 `/opt/amnezia-panel`, and run the collector container. If the SSH user is not

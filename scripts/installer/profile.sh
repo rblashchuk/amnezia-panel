@@ -16,12 +16,18 @@ save_profile() {
   write_profile_value REPO_IMAGE "$REPO_IMAGE"
   write_profile_value LOCAL_CONTAINER_NAME "$LOCAL_CONTAINER_NAME"
   write_profile_value REMOTE_CONTAINER_NAME "$REMOTE_CONTAINER_NAME"
+  write_profile_value REMOTE_OLD_CONTAINER_NAME "$REMOTE_OLD_CONTAINER_NAME"
+  write_profile_value LEGACY_CONTAINER_NAME "$LEGACY_CONTAINER_NAME"
   write_profile_value DATA_ROOT "$DATA_ROOT"
   write_profile_value DATA_DIR "$DATA_DIR"
+  write_profile_value REMOTE_DATA_ROOT "$REMOTE_DATA_ROOT"
+  write_profile_value REMOTE_DATA_DIR "$REMOTE_DATA_DIR"
   write_profile_value LOCAL_PANEL_PORT "$LOCAL_PANEL_PORT"
   write_profile_value LOCAL_TUNNEL_PORT "$LOCAL_TUNNEL_PORT"
   write_profile_value REMOTE_COLLECTOR_PORT "$REMOTE_COLLECTOR_PORT"
   write_profile_value LOCAL_DOCKER_PLATFORM "$LOCAL_DOCKER_PLATFORM"
+  write_profile_value VPN_SOURCE "$VPN_SOURCE"
+  write_profile_value VPN_ENDPOINTS "$VPN_ENDPOINTS"
   write_profile_value VPN_PANEL_TOKEN "$VPN_PANEL_TOKEN"
   write_profile_value VPS_AUTH_METHOD "$VPS_AUTH_METHOD"
   write_profile_value VPS_HOST "$VPS_HOST"
@@ -48,6 +54,7 @@ usage() {
   cat <<'USAGE'
 Usage:
   amnezia-panel [--profile NAME]
+  amnezia-panel --no-update-check
   amnezia-panel profiles
   amnezia-panel current
   amnezia-panel use NAME
@@ -77,37 +84,49 @@ list_profiles() {
 }
 
 PROFILE_NAME=""
+CHECK_UPDATES="yes"
 
-case "${1:-}" in
-  profiles)
-    list_profiles
-    exit 0
-    ;;
-  current)
-    current_profile_name
-    exit 0
-    ;;
-  use)
-    [ -n "${2:-}" ] || { usage >&2; exit 1; }
-    PROFILE_NAME="$2"
-    ;;
-  --profile|-p)
-    [ -n "${2:-}" ] || { usage >&2; exit 1; }
-    PROFILE_NAME="$2"
-    ;;
-  ""|start)
-    PROFILE_NAME="$(current_profile_name)"
-    ;;
-  -h|--help|help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "ERROR: unknown command: $1" >&2
-    usage >&2
-    exit 1
-    ;;
-esac
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    profiles)
+      list_profiles
+      exit 0
+      ;;
+    current)
+      current_profile_name
+      exit 0
+      ;;
+    use)
+      [ -n "${2:-}" ] || { usage >&2; exit 1; }
+      PROFILE_NAME="$2"
+      shift
+      ;;
+    --profile|-p)
+      [ -n "${2:-}" ] || { usage >&2; exit 1; }
+      PROFILE_NAME="$2"
+      shift
+      ;;
+    --no-update-check)
+      CHECK_UPDATES="no"
+      ;;
+    start)
+      ;;
+    -h|--help|help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown command: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [ -z "$PROFILE_NAME" ]; then
+  PROFILE_NAME="$(current_profile_name)"
+fi
 
 PROFILE_PATH="$PROFILES_DIR/$PROFILE_NAME.env"
 if [ ! -f "$PROFILE_PATH" ] && [ "$PROFILE_NAME" = "default" ] && [ -f "$LEGACY_PROFILE_PATH" ]; then
@@ -140,6 +159,128 @@ elif [ "$VPS_AUTH_METHOD" = "password-only" ]; then
   SSH_ARGS+=(-o PreferredAuthentications=password,keyboard-interactive -o PubkeyAuthentication=no)
 fi
 
+ask_yes_no() {
+  local prompt="$1"
+  local default_value="${2:-n}"
+  local answer
+
+  if [ "$default_value" = "y" ]; then
+    read -r -p "$prompt [Y/n]: " answer
+    answer="${answer:-y}"
+  else
+    read -r -p "$prompt [y/N]: " answer
+    answer="${answer:-n}"
+  fi
+
+  case "$answer" in
+    y|Y|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+update_remote_collector() {
+  local remote_env=(
+    "REPO_IMAGE=$REPO_IMAGE"
+    "REMOTE_CONTAINER_NAME=${REMOTE_CONTAINER_NAME:-amnezia-panel-collector}"
+    "REMOTE_OLD_CONTAINER_NAME=${REMOTE_OLD_CONTAINER_NAME:-amnezia-panel}"
+    "LEGACY_CONTAINER_NAME=${LEGACY_CONTAINER_NAME:-vpn-panel}"
+    "REMOTE_DATA_DIR=${REMOTE_DATA_DIR:-${REMOTE_DATA_ROOT:-/opt/amnezia-panel}/data}"
+    "REMOTE_COLLECTOR_PORT=$REMOTE_COLLECTOR_PORT"
+    "VPN_SOURCE=${VPN_SOURCE:-docker}"
+    "VPN_ENDPOINTS=${VPN_ENDPOINTS:-}"
+    "VPN_PANEL_TOKEN=$VPN_PANEL_TOKEN"
+  )
+  local remote_script_path="/tmp/amnezia-panel-cli-update-$$.sh"
+
+  "${SSH_CMD[@]}" "${SSH_ARGS[@]}" "$SSH_TARGET" "cat > '$remote_script_path' && chmod 700 '$remote_script_path'" <<'REMOTE_UPDATE_SCRIPT'
+set -euo pipefail
+
+run_sudo() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+run_sudo docker info >/dev/null
+run_sudo mkdir -p "$REMOTE_DATA_DIR"
+run_sudo chmod 755 "$REMOTE_DATA_DIR"
+run_sudo docker pull "$REPO_IMAGE"
+
+if [ "$VPN_SOURCE" = "docker" ] && [ -z "$VPN_ENDPOINTS" ]; then
+  endpoints=()
+
+  if run_sudo docker ps -a --format '{{.Names}}' | grep -Fxq "amnezia-awg2"; then
+    endpoints+=("awg:amnezia-awg2:awg")
+  fi
+
+  if run_sudo docker ps -a --format '{{.Names}}' | grep -Fxq "amnezia-wireguard"; then
+    endpoints+=("wireguard:amnezia-wireguard:wg")
+  fi
+
+  if [ "${#endpoints[@]}" -eq 0 ]; then
+    echo "ERROR: no supported Amnezia containers found on VPS"
+    exit 1
+  fi
+
+  VPN_ENDPOINTS="$(IFS=,; echo "${endpoints[*]}")"
+fi
+
+run_sudo docker rm -f "$REMOTE_CONTAINER_NAME" 2>/dev/null || true
+run_sudo docker rm -f "$REMOTE_OLD_CONTAINER_NAME" 2>/dev/null || true
+run_sudo docker rm -f "$LEGACY_CONTAINER_NAME" 2>/dev/null || true
+
+docker_args=(
+  -d
+  --name "$REMOTE_CONTAINER_NAME"
+  --restart unless-stopped
+  -p "127.0.0.1:${REMOTE_COLLECTOR_PORT}:9000"
+  -v /var/run/docker.sock:/var/run/docker.sock:ro
+  -v "$REMOTE_DATA_DIR:/app/data"
+  -e VPN_SOURCE=docker
+  -e "VPN_ENDPOINTS=$VPN_ENDPOINTS"
+  -e VPN_PANEL_LISTEN=0.0.0.0:9000
+  -e "VPN_PANEL_TOKEN=$VPN_PANEL_TOKEN"
+)
+
+run_sudo docker run "${docker_args[@]}" "$REPO_IMAGE" >/dev/null
+echo "VPS collector updated"
+REMOTE_UPDATE_SCRIPT
+
+  "${SSH_CMD[@]}" -tt "${SSH_ARGS[@]}" "$SSH_TARGET" "$(printf '%q ' "${remote_env[@]}") bash '$remote_script_path'; status=\$?; rm -f '$remote_script_path'; exit \$status"
+}
+
+local_pull_args=()
+local_run_args=()
+if [ -n "${LOCAL_DOCKER_PLATFORM:-}" ]; then
+  local_pull_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
+  local_run_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
+fi
+
+LOCAL_IMAGE_TO_RUN="$REPO_IMAGE"
+current_container_image=""
+if docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
+  current_container_image="$(docker inspect -f '{{.Image}}' "$LOCAL_CONTAINER_NAME")"
+fi
+
+if [ "$CHECK_UPDATES" = "yes" ]; then
+  echo "Checking for Amnezia Panel updates..."
+  docker pull "${local_pull_args[@]}" "$REPO_IMAGE" >/dev/null
+  latest_image="$(docker image inspect -f '{{.Id}}' "$REPO_IMAGE")"
+
+  if [ -n "$current_container_image" ] && [ "$current_container_image" != "$latest_image" ]; then
+    if ask_yes_no "A newer Amnezia Panel image is available. Update local panel and VPS collector?" "y"; then
+      update_remote_collector
+      docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
+      LOCAL_IMAGE_TO_RUN="$REPO_IMAGE"
+    else
+      echo "Keeping the currently installed image."
+      LOCAL_IMAGE_TO_RUN="$current_container_image"
+    fi
+  fi
+fi
+
 CONTROL_SOCKET="$DATA_ROOT/ssh-tunnel.sock"
 mkdir -p "$DATA_ROOT"
 
@@ -169,11 +310,6 @@ if docker ps --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
 elif docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
   docker start "$LOCAL_CONTAINER_NAME" >/dev/null
 else
-  local_run_args=()
-  if [ -n "${LOCAL_DOCKER_PLATFORM:-}" ]; then
-    local_run_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
-  fi
-
   docker run -d \
     "${local_run_args[@]}" \
     --name "$LOCAL_CONTAINER_NAME" \
@@ -185,7 +321,7 @@ else
     -e VPN_PANEL_LISTEN=0.0.0.0:9000 \
     -e "VPN_REMOTE_URL=http://host.docker.internal:${LOCAL_TUNNEL_PORT}" \
     -e "VPN_REMOTE_TOKEN=$VPN_PANEL_TOKEN" \
-    "$REPO_IMAGE" >/dev/null
+    "$LOCAL_IMAGE_TO_RUN" >/dev/null
 fi
 
 echo "Amnezia Panel is running:"

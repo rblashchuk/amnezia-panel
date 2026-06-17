@@ -48,6 +48,7 @@ amnezia-panel profiles
 amnezia-panel current
 amnezia-panel use default
 amnezia-panel --profile default
+amnezia-panel --no-update-check
 ```
 
 ## Image Updates
@@ -58,3 +59,7 @@ used by the installed container. When a newer image is available, the user gets
 an interactive prompt. If the user accepts, both the local panel and the VPS
 collector are updated. If the user declines, the installer keeps the current
 local image and does not update the VPS collector image.
+
+The installed `amnezia-panel` command performs the same update check before it
+starts the saved SSH tunnel and local web panel. Use `amnezia-panel
+--no-update-check` to skip this check for a single run.

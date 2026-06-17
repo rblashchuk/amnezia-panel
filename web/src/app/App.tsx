@@ -93,8 +93,8 @@ export function App() {
   })
 
   const onlineCount = peers.filter((peer) => getPeerStatus(peer.last_handshake) === 'online').length
-  const totalRx = peers.reduce((sum, peer) => sum + peer.rx_bytes, 0)
-  const totalTx = peers.reduce((sum, peer) => sum + peer.tx_bytes, 0)
+  const rangeRx = trafficQuery.data?.rx_bytes
+  const rangeTx = trafficQuery.data?.tx_bytes
 
   return (
     <div className="shell">
@@ -112,7 +112,7 @@ export function App() {
               Debug
             </button>
           </div>
-          <button className="icon-button" type="button" onClick={() => refreshAll(peersQuery.refetch, debugQuery.refetch)} title="Refresh">
+          <button className="icon-button" type="button" onClick={() => refreshAll(peersQuery.refetch, trafficQuery.refetch, debugQuery.refetch)} title="Refresh">
             <RefreshCcw size={18} />
           </button>
         </div>
@@ -134,8 +134,8 @@ export function App() {
           <>
             <section className="summary-grid" aria-label="Overview">
               <SummaryCard icon={<Server size={18} />} label="Peers" value={String(peers.length)} meta={`${onlineCount} online`} />
-              <SummaryCard icon={<Download size={18} />} label="Total RX" value={formatBytes(totalRx)} meta={selectedSource?.label ?? 'selected source'} />
-              <SummaryCard icon={<Upload size={18} />} label="Total TX" value={formatBytes(totalTx)} meta="live counters" />
+              <SummaryCard icon={<Download size={18} />} label="Total RX" value={formatBytes(rangeRx)} meta={rangeSelection.label} />
+              <SummaryCard icon={<Upload size={18} />} label="Total TX" value={formatBytes(rangeTx)} meta={selectedPeer ? peerDisplayName(selectedPeer) : 'selected client'} />
               <SummaryCard icon={<Activity size={18} />} label="Collector" value={peersQuery.isError ? 'Error' : 'Active'} meta="3s refresh" />
             </section>
 
@@ -207,8 +207,9 @@ export function App() {
   )
 }
 
-function refreshAll(refetchPeers: () => unknown, refetchDebug: () => unknown) {
+function refreshAll(refetchPeers: () => unknown, refetchTraffic: () => unknown, refetchDebug: () => unknown) {
   refetchPeers()
+  refetchTraffic()
   refetchDebug()
 }
 
