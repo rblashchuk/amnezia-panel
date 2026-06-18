@@ -1,5 +1,14 @@
 import { api } from './client'
-import type { DebugInfo, Peer, Source, TrafficRequest, TrafficResponse, UpdateCheckResponse } from './types'
+import type {
+  DebugInfo,
+  Peer,
+  RenameClientRequest,
+  RenameClientResponse,
+  Source,
+  TrafficRequest,
+  TrafficResponse,
+  UpdateCheckResponse,
+} from './types'
 
 export function getSources() {
   return api.get<Source[]>('/api/sources')
@@ -32,4 +41,8 @@ export function getDebugInfo() {
 
 export function checkUpdates() {
   return api.post<UpdateCheckResponse>('/api/update/check')
+}
+
+export function renameClient(request: RenameClientRequest) {
+  return api.post<RenameClientResponse>('/api/admin/clients/rename', request)
 }

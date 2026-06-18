@@ -95,3 +95,18 @@ export type UpdateCheckResponse = {
   collector: UpdateImageState
   requires_command: boolean
 }
+
+export type RenameClientRequest = {
+  protocol: string
+  container: string
+  client_id: string
+  name: string
+}
+
+export type RenameClientResponse = {
+  protocol: string
+  container: string
+  client_id: string
+  name: string
+  path: string
+}
