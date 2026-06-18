@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/rblashchuk/amnezia-panel/internal/admin"
 	"github.com/rblashchuk/amnezia-panel/internal/collector"
 	"github.com/rblashchuk/amnezia-panel/internal/db"
 	"github.com/rblashchuk/amnezia-panel/internal/web"
@@ -61,11 +62,13 @@ func serveRemoteProxy(remoteURL, token string) {
 	}
 
 	mux := http.NewServeMux()
+	adminHandler := web.AdminHandler{Service: adminServiceFromEnv()}
 
 	mux.HandleFunc("/api/peers", proxy.Peers)
 	mux.HandleFunc("/api/sources", proxy.Sources)
 	mux.HandleFunc("/api/debug", proxy.Debug)
 	mux.HandleFunc("/api/traffic", proxy.Traffic)
+	mux.HandleFunc("/api/admin/clients/rename", adminHandler.RenameClient)
 	mux.HandleFunc("/api/update/check", web.UpdateCheck)
 	mux.HandleFunc("/peers", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
@@ -76,6 +79,26 @@ func serveRemoteProxy(remoteURL, token string) {
 	listenAddr := env("VPN_PANEL_LISTEN", "127.0.0.1:9000")
 	log.Println("local proxy mode listening on", listenAddr, "remote", remoteURL)
 	log.Fatal(http.ListenAndServe(listenAddr, mux))
+}
+
+func adminServiceFromEnv() *admin.Service {
+	host := os.Getenv("VPS_HOST")
+	if host == "" {
+		return nil
+	}
+
+	return &admin.Service{
+		Files: admin.SSHDockerFiles{
+			Config: admin.SSHConfig{
+				AuthMethod: env("VPS_AUTH_METHOD", "default"),
+				Host:       host,
+				User:       os.Getenv("VPS_USER"),
+				Port:       os.Getenv("VPS_PORT"),
+				KeyPath:    os.Getenv("VPS_SSH_KEY"),
+			},
+		},
+		Lock: &admin.OperationLock{},
+	}
 }
 
 func buildWGSources() []wg.Source {

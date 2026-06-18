@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
   Boxes,
   CalendarClock,
+  Check,
   Clock3,
   Cpu,
   Database,
@@ -12,13 +13,14 @@ import {
   HardDrive,
   MemoryStick,
   Network,
+  Pencil,
   RefreshCcw,
   Server,
   TerminalSquare,
   Upload,
   X,
 } from 'lucide-react'
-import { checkUpdates, getDebugInfo, getPeers, getSources, getTraffic, getTrafficTotal } from '../api/peers'
+import { checkUpdates, getDebugInfo, getPeers, getSources, getTraffic, getTrafficTotal, renameClient } from '../api/peers'
 import type { DebugInfo, Peer, Source, TrafficRequest, TrafficRange, UpdateCheckResponse } from '../api/types'
 import { formatBytes, formatRelativeHandshake, getPeerStatus, shortKey } from '../lib/format'
 import { TrafficChart } from '../features/traffic/TrafficChart'
@@ -42,6 +44,7 @@ type RangeSelection =
 type RangeEditor = 'closed' | 'custom'
 
 export function App() {
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState<Tab>('traffic')
   const [selectedSourceID, setSelectedSourceID] = useState('')
   const [selectedKey, setSelectedKey] = useState('')
@@ -118,6 +121,13 @@ export function App() {
     retry: false,
   })
 
+  const renameMutation = useMutation({
+    mutationFn: renameClient,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['peers'] })
+    },
+  })
+
   useEffect(() => {
     if (tab === 'debug') {
       updateQuery.refetch()
@@ -186,10 +196,22 @@ export function App() {
             <section className="workspace">
               <PeerList
                 peers={peers}
+                source={selectedSource}
                 selectedKey={effectiveSelectedKey}
                 isLoading={peersQuery.isLoading}
                 error={peersQuery.error}
+                isRenaming={renameMutation.isPending}
+                renameError={renameMutation.error}
                 onSelect={setSelectedKey}
+                onRename={(peer, name) => {
+                  if (!selectedSource?.container) return
+                  renameMutation.mutate({
+                    protocol: selectedSource.protocol,
+                    container: selectedSource.container,
+                    client_id: peer.public_key,
+                    name,
+                  })
+                }}
               />
 
               <section className="traffic-panel">
@@ -438,17 +460,36 @@ function SummaryCard({ icon, label, value, meta }: { icon: ReactNode; label: str
 
 function PeerList({
   peers,
+  source,
   selectedKey,
   isLoading,
   error,
+  isRenaming,
+  renameError,
   onSelect,
+  onRename,
 }: {
   peers: Peer[]
+  source?: Source
   selectedKey: string
   isLoading: boolean
   error: Error | null
+  isRenaming: boolean
+  renameError: Error | null
   onSelect: (key: string) => void
+  onRename: (peer: Peer, name: string) => void
 }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const selectedPeer = peers.find((peer) => peer.public_key === selectedKey)
+  const [nameDraft, setNameDraft] = useState('')
+  const canRename = Boolean(selectedPeer && source?.container)
+
+  useEffect(() => {
+    if (!isEditing) {
+      setNameDraft(selectedPeer ? peerDisplayName(selectedPeer) : '')
+    }
+  }, [isEditing, selectedPeer?.public_key, selectedPeer?.name])
+
   return (
     <section className="peer-panel">
       <div className="panel-header">
@@ -456,7 +497,51 @@ function PeerList({
           <div className="panel-title">Peers</div>
           <div className="panel-subtitle">{peers.length} configured clients</div>
         </div>
+        <button
+          className="icon-button"
+          type="button"
+          title="Rename selected client"
+          disabled={!canRename || isRenaming}
+          onClick={() => {
+            if (!selectedPeer) return
+            setNameDraft(peerDisplayName(selectedPeer))
+            setIsEditing((current) => !current)
+          }}
+        >
+          <Pencil size={17} />
+        </button>
       </div>
+
+      {isEditing && selectedPeer ? (
+        <form
+          className="rename-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const nextName = nameDraft.trim()
+            if (!nextName) return
+            onRename(selectedPeer, nextName)
+            setIsEditing(false)
+          }}
+        >
+          <input
+            type="text"
+            value={nameDraft}
+            onChange={(event) => setNameDraft(event.target.value)}
+            disabled={isRenaming}
+            autoFocus
+          />
+          <button className="apply-range" type="submit" disabled={isRenaming || nameDraft.trim() === ''}>
+            <Check size={15} />
+            Rename
+          </button>
+          <button className="clear-range-button" type="button" onClick={() => setIsEditing(false)} disabled={isRenaming}>
+            <X size={14} />
+            Cancel
+          </button>
+        </form>
+      ) : null}
+
+      {renameError ? <div className="inline-error">{renameError.message}</div> : null}
 
       <div className="peer-list">
         {isLoading && <StateMessage title="Loading peers" detail="Waiting for protocol dump" />}

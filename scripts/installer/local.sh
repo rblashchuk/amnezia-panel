@@ -57,6 +57,8 @@ install_local_panel() {
 
   local_run_args=()
   local_docker_socket_args=()
+  local_ssh_args=()
+  container_vps_ssh_key="$VPS_SSH_KEY"
   if [ -n "$LOCAL_DOCKER_PLATFORM" ]; then
     local_run_args+=(--platform "$LOCAL_DOCKER_PLATFORM")
   fi
@@ -64,12 +66,14 @@ install_local_panel() {
   if [ -n "${LOCAL_DOCKER_SOCKET:-}" ]; then
     local_docker_socket_args+=(-v "$LOCAL_DOCKER_SOCKET:/var/run/docker.sock")
   fi
+  prepare_local_ssh_mounts
 
   docker rm -f "$LOCAL_CONTAINER_NAME" 2>/dev/null || true
 
   docker run -d \
     "${local_run_args[@]}" \
     "${local_docker_socket_args[@]}" \
+    "${local_ssh_args[@]}" \
     --name "$LOCAL_CONTAINER_NAME" \
     --restart unless-stopped \
     --label "amnezia.panel.profile=$PROFILE_NAME" \
@@ -84,7 +88,35 @@ install_local_panel() {
     -e "LOCAL_DOCKER_PLATFORM=$LOCAL_DOCKER_PLATFORM" \
     -e "LOCAL_CONTAINER_NAME=$LOCAL_CONTAINER_NAME" \
     -e "REMOTE_CONTAINER_NAME=$REMOTE_CONTAINER_NAME" \
+    -e "VPS_AUTH_METHOD=$VPS_AUTH_METHOD" \
+    -e "VPS_HOST=$VPS_HOST" \
+    -e "VPS_USER=$VPS_USER" \
+    -e "VPS_PORT=$VPS_PORT" \
+    -e "VPS_SSH_KEY=$container_vps_ssh_key" \
     "$LOCAL_IMAGE_TO_RUN"
+}
+
+prepare_local_ssh_mounts() {
+  if [ -d "$HOME/.ssh" ]; then
+    local_ssh_args+=(-v "$HOME/.ssh:/root/.ssh:ro")
+  fi
+
+  if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+    local_ssh_args+=(-v "$SSH_AUTH_SOCK:/ssh-agent" -e SSH_AUTH_SOCK=/ssh-agent)
+  fi
+
+  if [ "$VPS_AUTH_METHOD" = "identity-file" ] && [ -n "$VPS_SSH_KEY" ]; then
+    case "$VPS_SSH_KEY" in
+      "$HOME/.ssh/"*)
+        container_vps_ssh_key="/root/.ssh/${VPS_SSH_KEY#"$HOME/.ssh/"}"
+        ;;
+      *)
+        local key_dir
+        key_dir="$(dirname "$VPS_SSH_KEY")"
+        local_ssh_args+=(-v "$key_dir:$key_dir:ro")
+        ;;
+    esac
+  fi
 }
 
 detect_local_docker_socket() {
