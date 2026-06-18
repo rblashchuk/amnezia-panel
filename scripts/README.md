@@ -53,10 +53,16 @@ amnezia-panel profiles
 amnezia-panel current
 amnezia-panel use default
 amnezia-panel --profile default
+amnezia-panel --port 9010
 amnezia-panel --no-update-check
 amnezia-panel update
 ap update
 ```
+
+The installer and the installed command ask for the local web UI port. The
+default is `9000`; `--port` can be used for non-interactive runs. If an existing
+local panel container is bound to a different port, the command recreates that
+container with the selected port.
 
 ## Image Updates
 

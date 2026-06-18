@@ -85,8 +85,8 @@ LEGACY_PROFILE_PATH="$DATA_ROOT/profile.env"
 usage() {
   cat <<'USAGE'
 Usage:
-  amnezia-panel [--profile NAME]
-  amnezia-panel update [--profile NAME]
+  amnezia-panel [--profile NAME] [--port PORT]
+  amnezia-panel update [--profile NAME] [--port PORT]
   amnezia-panel --no-update-check
   amnezia-panel profiles
   amnezia-panel current
@@ -119,6 +119,7 @@ list_profiles() {
 PROFILE_NAME=""
 CHECK_UPDATES="yes"
 RUN_MODE="start"
+CLI_PANEL_PORT=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -142,6 +143,11 @@ while [ "$#" -gt 0 ]; do
     --profile|-p)
       [ -n "${2:-}" ] || { usage >&2; exit 1; }
       PROFILE_NAME="$2"
+      shift
+      ;;
+    --port)
+      [ -n "${2:-}" ] || { usage >&2; exit 1; }
+      CLI_PANEL_PORT="$2"
       shift
       ;;
     --no-update-check)
@@ -183,6 +189,57 @@ PROFILE_NAME="${PROFILE_NAME:-$(basename "$PROFILE_PATH" .env)}"
 PANEL_IMAGE="${PANEL_IMAGE:-${REPO_IMAGE:-ghcr.io/rblashchuk/amnezia-panel:latest}}"
 COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-ghcr.io/rblashchuk/amnezia-panel-collector:latest}"
 REPO_IMAGE="$PANEL_IMAGE"
+LOCAL_PANEL_PORT="${AMNEZIA_PANEL_PORT:-${LOCAL_PANEL_PORT:-9000}}"
+
+valid_port() {
+  local value="$1"
+  [[ "$value" =~ ^[0-9]+$ ]] && [ "$value" -ge 1 ] && [ "$value" -le 65535 ]
+}
+
+ask_port() {
+  local prompt="$1"
+  local default_value="$2"
+  local answer
+
+  while true; do
+    read -r -p "$prompt [$default_value]: " answer
+    answer="${answer:-$default_value}"
+    if valid_port "$answer"; then
+      LOCAL_PANEL_PORT="$answer"
+      return
+    fi
+    echo "Enter a TCP port between 1 and 65535."
+  done
+}
+
+save_profile_port() {
+  local escaped_port
+  local temp_path
+  escaped_port="$(printf '%q' "$LOCAL_PANEL_PORT")"
+  temp_path="$PROFILE_PATH.tmp.$$"
+
+  if [ -f "$PROFILE_PATH" ] && grep -q '^LOCAL_PANEL_PORT=' "$PROFILE_PATH"; then
+    awk -v value="LOCAL_PANEL_PORT=$escaped_port" '
+      /^LOCAL_PANEL_PORT=/ { print value; next }
+      { print }
+    ' "$PROFILE_PATH" > "$temp_path"
+    mv "$temp_path" "$PROFILE_PATH"
+  else
+    printf 'LOCAL_PANEL_PORT=%s\n' "$escaped_port" >> "$PROFILE_PATH"
+  fi
+}
+
+if [ -n "$CLI_PANEL_PORT" ]; then
+  if ! valid_port "$CLI_PANEL_PORT"; then
+    echo "ERROR: invalid web UI port: $CLI_PANEL_PORT" >&2
+    exit 1
+  fi
+  LOCAL_PANEL_PORT="$CLI_PANEL_PORT"
+elif [ -t 0 ]; then
+  ask_port "Local web UI port" "$LOCAL_PANEL_PORT"
+fi
+
+save_profile_port
 printf '%s\n' "$PROFILE_NAME" > "$CURRENT_PROFILE_PATH"
 
 SSH_TARGET="$VPS_HOST"
@@ -399,6 +456,10 @@ detect_local_docker_socket() {
 
 detect_local_docker_socket
 
+container_web_port() {
+  docker port "$LOCAL_CONTAINER_NAME" 9000/tcp 2>/dev/null | awk -F: 'NF { port=$NF } END { print port }'
+}
+
 LOCAL_IMAGE_TO_RUN="$REPO_IMAGE"
 current_container_image=""
 if docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
@@ -407,7 +468,7 @@ fi
 
 if [ "$CHECK_UPDATES" = "yes" ]; then
   echo "Checking for Amnezia Panel updates..."
-  if run_with_timeout 20 docker pull "${local_pull_args[@]}" "$REPO_IMAGE"; then
+  if run_with_timeout 20 docker pull ${local_pull_args[@]+"${local_pull_args[@]}"} "$REPO_IMAGE"; then
     latest_image="$(docker image inspect -f '{{.Id}}' "$REPO_IMAGE")"
 
     if [ -n "$current_container_image" ] && [ "$current_container_image" != "$latest_image" ]; then
@@ -454,14 +515,24 @@ if [ -n "$container_profile" ] && [ "$container_profile" != "$PROFILE_NAME" ]; t
   docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
 fi
 
+container_panel_port=""
+if docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
+  container_panel_port="$(container_web_port)"
+fi
+
+if [ -n "$container_panel_port" ] && [ "$container_panel_port" != "$LOCAL_PANEL_PORT" ]; then
+  echo "Recreating local panel on port $LOCAL_PANEL_PORT."
+  docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
+
 if docker ps --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
   :
 elif docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
   docker start "$LOCAL_CONTAINER_NAME" >/dev/null
 else
   docker run -d \
-    "${local_run_args[@]}" \
-    "${local_docker_socket_args[@]}" \
+    ${local_run_args[@]+"${local_run_args[@]}"} \
+    ${local_docker_socket_args[@]+"${local_docker_socket_args[@]}"} \
     --name "$LOCAL_CONTAINER_NAME" \
     --restart unless-stopped \
     --label "amnezia.panel.profile=$PROFILE_NAME" \

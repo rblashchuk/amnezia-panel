@@ -12,6 +12,43 @@ and historical charts for each client.
 The local web panel and the VPS collector are shipped as separate Docker images.
 The collector image is intentionally minimal because VPS disks are often small.
 
+## Prerequisites
+
+### Local Machine
+
+Supported local environments:
+
+- macOS with Docker Desktop or Colima
+- Linux with Docker Engine
+- Windows through WSL2 with Docker Desktop WSL integration
+
+Native Windows shells such as PowerShell and `cmd.exe` are not supported yet.
+Run the installer from a WSL2 Linux shell instead.
+
+Required local tools:
+
+- `bash`
+- `curl` or `wget`
+- `ssh`
+- Docker CLI connected to a running Docker daemon
+- optional: `sshpass` for password-only SSH setup without repeated prompts
+
+The installer runs the web UI locally in Docker and keeps it available only on
+`127.0.0.1`. It also creates an SSH tunnel from the local machine to the VPS
+collector.
+
+### VPS
+
+Required VPS access:
+
+- Linux server with SSH access
+- `root` login or a user with `sudo`
+- enough disk space for Docker images and the collector database
+- an existing self-hosted AmneziaVPN installation
+
+Docker is required on the VPS. If Docker is missing, the installer will try to
+install it automatically on systems with `apt-get`, `dnf`, or `yum`.
+
 ## Install
 
 Run on your local machine:
@@ -23,6 +60,8 @@ curl -fsSL https://raw.githubusercontent.com/rblashchuk/amnezia-panel/master/scr
 The installer asks for VPS SSH connection settings, installs the collector on
 the VPS, starts an SSH tunnel, and runs the web panel locally at
 `http://127.0.0.1:9000`.
+
+During setup, you can choose the local web UI port. The default is `9000`.
 
 After installation, the `amnezia-panel` command and the shorter `ap` alias are
 installed to `~/.local/bin`. Running either command later starts the saved SSH
@@ -36,12 +75,17 @@ amnezia-panel profiles
 amnezia-panel current
 amnezia-panel use default
 amnezia-panel --profile default
+amnezia-panel --port 9010
 amnezia-panel --no-update-check
 ap update
 ```
 
 On startup, `amnezia-panel` checks whether a newer Docker image is available and
 asks before updating the local panel and VPS collector.
+
+When started from an interactive terminal, `amnezia-panel` / `ap` asks which
+local web UI port to use. You can also pass it explicitly with `--port`; the
+selected value is saved back to the active profile.
 
 The Debug tab can also check for updates. When a newer image is available, it
 shows the latest image information and the terminal command to run.

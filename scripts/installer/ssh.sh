@@ -20,6 +20,25 @@ ask() {
   printf -v "$var_name" '%s' "$current_value"
 }
 
+ask_port() {
+  local var_name="$1"
+  local prompt="$2"
+  local default_value="${3:-9000}"
+  local current_value
+
+  while true; do
+    read -r -p "$prompt [$default_value]: " current_value < "$TTY"
+    current_value="${current_value:-$default_value}"
+
+    if [[ "$current_value" =~ ^[0-9]+$ ]] && [ "$current_value" -ge 1 ] && [ "$current_value" -le 65535 ]; then
+      printf -v "$var_name" '%s' "$current_value"
+      return
+    fi
+
+    warn "Enter a TCP port between 1 and 65535."
+  done
+}
+
 ask_secret() {
   local var_name="$1"
   local prompt="$2"

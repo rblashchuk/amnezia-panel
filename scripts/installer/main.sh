@@ -19,6 +19,7 @@ run_install() {
   set_profile_paths
   load_profile_if_exists
   collect_ssh_settings
+  ask_port LOCAL_PANEL_PORT "Local web UI port" "${LOCAL_PANEL_PORT:-9000}"
 
   if [ -z "$VPN_PANEL_TOKEN" ]; then
     if command -v openssl >/dev/null 2>&1; then
