@@ -487,6 +487,20 @@ container_web_port() {
   docker port "$LOCAL_CONTAINER_NAME" 9000/tcp 2>/dev/null | awk -F: 'NF { port=$NF } END { print port }'
 }
 
+container_env_value() {
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$LOCAL_CONTAINER_NAME" 2>/dev/null \
+    | awk -F= -v key="$1" '$1 == key { sub(/^[^=]*=/, ""); print; exit }'
+}
+
+container_admin_env_matches() {
+  [ "$(container_env_value VPS_AUTH_METHOD)" = "$VPS_AUTH_METHOD" ] || return 1
+  [ "$(container_env_value VPS_HOST)" = "$VPS_HOST" ] || return 1
+  [ "$(container_env_value VPS_USER)" = "$VPS_USER" ] || return 1
+  [ "$(container_env_value VPS_PORT)" = "$VPS_PORT" ] || return 1
+  [ "$(container_env_value VPS_SSH_KEY)" = "$container_vps_ssh_key" ] || return 1
+  return 0
+}
+
 LOCAL_IMAGE_TO_RUN="$REPO_IMAGE"
 current_container_image=""
 if docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
@@ -550,6 +564,13 @@ fi
 if [ -n "$container_panel_port" ] && [ "$container_panel_port" != "$LOCAL_PANEL_PORT" ]; then
   echo "Recreating local panel on port $LOCAL_PANEL_PORT."
   docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
+
+if docker ps -a --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
+  if ! container_admin_env_matches; then
+    echo "Recreating local panel with updated admin SSH settings."
+    docker rm -f "$LOCAL_CONTAINER_NAME" >/dev/null 2>&1 || true
+  fi
 fi
 
 if docker ps --format '{{.Names}}' | grep -Fxq "$LOCAL_CONTAINER_NAME"; then
