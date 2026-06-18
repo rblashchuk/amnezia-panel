@@ -131,6 +131,12 @@ h1 {
   border-color: var(--accent);
 }
 
+.icon-button:disabled {
+  color: var(--soft);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+
 .dashboard {
   display: flex;
   flex-direction: column;
@@ -350,6 +356,35 @@ h1 {
   flex-direction: column;
   gap: 3px;
   text-align: right;
+}
+
+.rename-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rename-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  color-scheme: dark;
+}
+
+.inline-error {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  color: var(--danger);
+  background: rgba(255, 107, 97, 0.08);
+  border: 1px solid rgba(255, 107, 97, 0.28);
+  font-size: 12px;
 }
 
 .segmented {

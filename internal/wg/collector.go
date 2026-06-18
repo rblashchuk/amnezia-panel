@@ -51,7 +51,7 @@ func (s *DockerSource) Dump(ctx context.Context) ([]byte, error) {
 }
 
 func (s *DockerSource) Clients(ctx context.Context) (map[string]model.ClientMetadata, error) {
-	path := clientsTablePath(s.Protocol)
+	path := ClientsTablePath(s.Protocol)
 	if path == "" {
 		return map[string]model.ClientMetadata{}, nil
 	}
@@ -135,7 +135,7 @@ func (s *LocalSource) command() string {
 	return "wg"
 }
 
-func clientsTablePath(protocol string) string {
+func ClientsTablePath(protocol string) string {
 	switch protocol {
 	case "wireguard":
 		return "/opt/amnezia/wireguard/clientsTable"
